@@ -78,8 +78,8 @@ export function SettingsTab() {
   };
 
   const handleResetCategories = async () => {
-     if (resetCategoriesConfirmationInput !== "DELETE") {
-      toast({ variant: "destructive", title: "Confirmation Failed", description: "Please type DELETE to confirm." });
+     if (resetCategoriesConfirmationInput !== "RESET") {
+      toast({ variant: "destructive", title: "Confirmation Failed", description: "Please type RESET to confirm." });
       return;
     }
     try {
@@ -318,18 +318,18 @@ export function SettingsTab() {
                     <AlertDialogTitle>Are you sure you want to reset categories?</AlertDialogTitle>
                     <AlertDialogDescription>
                       This will replace all current categories with the default set. Any expenses or subscriptions linked to custom categories will become uncategorized. This action cannot be undone.
-                      To confirm, please type "DELETE" in the box below.
+                      To confirm, please type "RESET" in the box below.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <div className="py-2">
                      <Label htmlFor="resetCategoriesConfirmInput" className="sr-only">
-                      Type DELETE to confirm
+                      Type RESET to confirm
                     </Label>
                     <Input
                       id="resetCategoriesConfirmInput"
                       value={resetCategoriesConfirmationInput}
                       onChange={(e) => setResetCategoriesConfirmationInput(e.target.value)}
-                      placeholder='Type "DELETE" here'
+                      placeholder='Type "RESET" here'
                       className="border-destructive focus-visible:ring-destructive"
                     />
                   </div>
@@ -337,7 +337,7 @@ export function SettingsTab() {
                     <AlertDialogCancel onClick={() => setResetCategoriesConfirmationInput("")}>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleResetCategories}
-                      disabled={resetCategoriesConfirmationInput !== "DELETE"}
+                      disabled={resetCategoriesConfirmationInput !== "RESET"}
                       className="bg-destructive hover:bg-destructive/90"
                     >
                       Yes, reset categories
@@ -352,6 +352,4 @@ export function SettingsTab() {
     </div>
   );
 }
-
-
     
