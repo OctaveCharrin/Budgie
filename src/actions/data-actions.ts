@@ -7,6 +7,7 @@ import type { Expense, Subscription, Category, AppSettings, CurrencyCode } from 
 import { convertAmountToAllCurrencies } from '@/services/exchange-rate-service';
 import { openDb, initializeDb } from '@/lib/db';
 import { getDay as getDayFns } from 'date-fns'; // For day of week calculation
+import { z } from 'zod';
 
 const generateId = () => crypto.randomUUID();
 
@@ -44,14 +45,65 @@ async function getDb() {
   return openDb();
 }
 
+// --- Zod Schemas for Server-Side Validation ---
+const SettingsSchema = z.object({
+  defaultCurrency: z.enum(SUPPORTED_CURRENCIES),
+});
+
+const CategoryBaseSchema = z.object({
+  name: z.string().min(1, "Category name is required."),
+  icon: z.string().min(1, "Icon is required."), // Assuming icon is a string name from lucide-react
+});
+
+const AddCategoryInputSchema = CategoryBaseSchema;
+const UpdateCategoryInputSchema = CategoryBaseSchema.extend({
+  id: z.string().uuid("Invalid category ID."),
+  isDefault: z.boolean().optional(),
+});
+
+
+const ExpenseBaseSchema = z.object({
+  date: z.string().refine((date) => !isNaN(Date.parse(date)), { message: "Invalid date format." }),
+  categoryId: z.string().min(1, "Category ID is required."),
+  originalAmount: z.number().positive("Amount must be positive."),
+  originalCurrency: z.enum(SUPPORTED_CURRENCIES),
+  description: z.string().optional(),
+});
+
+const AddExpenseInputSchema = ExpenseBaseSchema;
+const UpdateExpenseInputSchema = ExpenseBaseSchema.extend({
+  id: z.string().uuid("Invalid expense ID."),
+  amounts: z.record(z.enum(SUPPORTED_CURRENCIES), z.number()), // Assuming amounts will be passed if already calculated
+  dayOfWeek: z.number().min(0).max(6).optional(), // dayOfWeek is calculated server-side but might be part of full Expense object
+});
+
+
+const SubscriptionBaseSchema = z.object({
+  name: z.string().min(1, "Subscription name is required."),
+  categoryId: z.string().min(1, "Category ID is required."),
+  originalAmount: z.number().positive("Amount must be positive."),
+  originalCurrency: z.enum(SUPPORTED_CURRENCIES),
+  startDate: z.string().refine((date) => !isNaN(Date.parse(date)), { message: "Invalid start date format." }),
+  endDate: z.string().refine((date) => !isNaN(Date.parse(date)), { message: "Invalid end date format." }).optional(),
+  description: z.string().optional(),
+});
+
+const AddSubscriptionInputSchema = SubscriptionBaseSchema;
+const UpdateSubscriptionInputSchema = SubscriptionBaseSchema.extend({
+  id: z.string().uuid("Invalid subscription ID."),
+  amounts: z.record(z.enum(SUPPORTED_CURRENCIES), z.number()),
+});
+
+
 // Settings Actions
 export async function getSettingsAction(): Promise<AppSettings> {
   return readData<AppSettings>(DATA_FILE_PATHS.settings, DEFAULT_SETTINGS);
 }
 
 export async function updateSettingsAction(updatedSettings: AppSettings): Promise<AppSettings> {
-  await writeData(DATA_FILE_PATHS.settings, updatedSettings);
-  return updatedSettings;
+  const parsedSettings = SettingsSchema.parse(updatedSettings);
+  await writeData(DATA_FILE_PATHS.settings, parsedSettings);
+  return parsedSettings;
 }
 
 // Category Actions
@@ -61,14 +113,15 @@ export async function getCategoriesAction(): Promise<Category[]> {
 }
 
 export async function addCategoryAction(categoryData: Omit<Category, 'id' | 'isDefault'>): Promise<Category> {
+  const parsedData = AddCategoryInputSchema.parse(categoryData);
   const categories = await getCategoriesAction();
-  if (categories.some(cat => cat.name.toLowerCase() === categoryData.name.toLowerCase())) {
-    throw new Error(`Category with name "${categoryData.name}" already exists.`);
+  if (categories.some(cat => cat.name.toLowerCase() === parsedData.name.toLowerCase())) {
+    throw new Error(`Category with name "${parsedData.name}" already exists.`);
   }
   const newCategory: Category = {
     id: generateId(),
-    name: categoryData.name,
-    icon: categoryData.icon,
+    name: parsedData.name,
+    icon: parsedData.icon,
     isDefault: false,
   };
   const updatedCategories = [...categories, newCategory].sort((a, b) => a.name.localeCompare(b.name));
@@ -77,21 +130,23 @@ export async function addCategoryAction(categoryData: Omit<Category, 'id' | 'isD
 }
 
 export async function updateCategoryAction(updatedCategory: Category): Promise<Category> {
+  const parsedCategory = UpdateCategoryInputSchema.parse(updatedCategory);
   let categories = await getCategoriesAction();
   const existingCategoryWithSameName = categories.find(
-    cat => cat.name.toLowerCase() === updatedCategory.name.toLowerCase() && cat.id !== updatedCategory.id
+    cat => cat.name.toLowerCase() === parsedCategory.name.toLowerCase() && cat.id !== parsedCategory.id
   );
   if (existingCategoryWithSameName) {
-    throw new Error(`Cannot update category: name "${updatedCategory.name}" is already in use by another category.`);
+    throw new Error(`Cannot update category: name "${parsedCategory.name}" is already in use by another category.`);
   }
   
-  categories = categories.map(cat => cat.id === updatedCategory.id ? updatedCategory : cat)
+  categories = categories.map(cat => cat.id === parsedCategory.id ? parsedCategory : cat)
                          .sort((a, b) => a.name.localeCompare(b.name));
   await writeData(DATA_FILE_PATHS.categories, categories);
-  return updatedCategory;
+  return parsedCategory;
 }
 
 export async function deleteCategoryAction(id: string): Promise<{ success: boolean; message?: string }> {
+  z.string().uuid("Invalid category ID.").parse(id);
   const categories = await getCategoriesAction();
   const categoryToDelete = categories.find(cat => cat.id === id);
 
@@ -143,10 +198,11 @@ export async function getExpensesAction(): Promise<Expense[]> {
 export async function addExpenseAction(
   expenseData: Omit<Expense, 'id' | 'amounts' | 'dayOfWeek'> & { originalAmount: number; originalCurrency: CurrencyCode }
 ): Promise<Expense> {
+  const parsedData = AddExpenseInputSchema.parse(expenseData);
   const db = await getDb();
-  const amounts = await convertAmountToAllCurrencies(expenseData.originalAmount, expenseData.originalCurrency);
+  const amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency);
   const newExpenseId = generateId();
-  const dayOfWeek = calculateDayOfWeek(expenseData.date);
+  const dayOfWeek = calculateDayOfWeek(parsedData.date);
   
   const dbAmountParams = mapAmountsToDbPlaceholders(amounts);
 
@@ -155,55 +211,57 @@ export async function addExpenseAction(
      VALUES ($id, $date, $categoryId, $originalAmount, $originalCurrency, $day_of_week, ${amountDbValuePlaceholders}, $description)`,
     {
       $id: newExpenseId,
-      $date: expenseData.date,
-      $categoryId: expenseData.categoryId,
-      $originalAmount: expenseData.originalAmount,
-      $originalCurrency: expenseData.originalCurrency,
+      $date: parsedData.date,
+      $categoryId: parsedData.categoryId,
+      $originalAmount: parsedData.originalAmount,
+      $originalCurrency: parsedData.originalCurrency,
       $day_of_week: dayOfWeek,
       ...dbAmountParams,
-      $description: expenseData.description,
+      $description: parsedData.description,
     }
   );
-  return { ...expenseData, id: newExpenseId, amounts, dayOfWeek };
+  return { ...parsedData, id: newExpenseId, amounts, dayOfWeek };
 }
 
 export async function updateExpenseAction(updatedExpenseData: Expense): Promise<Expense> {
+  const parsedData = UpdateExpenseInputSchema.parse(updatedExpenseData);
   const db = await getDb();
-  const existingExpenseRow = await db.get('SELECT originalAmount, originalCurrency FROM expenses WHERE id = ?', updatedExpenseData.id);
+  const existingExpenseRow = await db.get('SELECT originalAmount, originalCurrency FROM expenses WHERE id = ?', parsedData.id);
 
   if (!existingExpenseRow) {
     throw new Error("Expense not found for update.");
   }
   
-  let amounts = updatedExpenseData.amounts;
+  let amounts = parsedData.amounts;
   if (
-    Number(existingExpenseRow.originalAmount) !== updatedExpenseData.originalAmount ||
-    existingExpenseRow.originalCurrency !== updatedExpenseData.originalCurrency
+    Number(existingExpenseRow.originalAmount) !== parsedData.originalAmount ||
+    existingExpenseRow.originalCurrency !== parsedData.originalCurrency
   ) {
-    amounts = await convertAmountToAllCurrencies(updatedExpenseData.originalAmount, updatedExpenseData.originalCurrency);
+    amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency);
   }
   
-  const dayOfWeek = calculateDayOfWeek(updatedExpenseData.date);
+  const dayOfWeek = calculateDayOfWeek(parsedData.date);
   const dbAmountParams = mapAmountsToDbPlaceholders(amounts);
 
   await db.run(
     `UPDATE expenses SET date = $date, categoryId = $categoryId, originalAmount = $originalAmount, originalCurrency = $originalCurrency, day_of_week = $day_of_week, ${SUPPORTED_CURRENCIES.map(c => `amount_${c.toLowerCase()} = $amount_${c.toLowerCase()}`).join(', ')}, description = $description
      WHERE id = $id`,
     {
-      $id: updatedExpenseData.id,
-      $date: updatedExpenseData.date,
-      $categoryId: updatedExpenseData.categoryId,
-      $originalAmount: updatedExpenseData.originalAmount,
-      $originalCurrency: updatedExpenseData.originalCurrency,
+      $id: parsedData.id,
+      $date: parsedData.date,
+      $categoryId: parsedData.categoryId,
+      $originalAmount: parsedData.originalAmount,
+      $originalCurrency: parsedData.originalCurrency,
       $day_of_week: dayOfWeek,
       ...dbAmountParams,
-      $description: updatedExpenseData.description,
+      $description: parsedData.description,
     }
   );
-  return { ...updatedExpenseData, amounts, dayOfWeek }; // Ensure dayOfWeek is part of returned object
+  return { ...parsedData, date: parsedData.date, amounts, dayOfWeek };
 }
 
 export async function deleteExpenseAction(id: string): Promise<{ success: boolean }> {
+  z.string().uuid("Invalid expense ID.").parse(id);
   const db = await getDb();
   await db.run('DELETE FROM expenses WHERE id = ?', id);
   return { success: true };
@@ -235,12 +293,13 @@ export async function getSubscriptionsAction(): Promise<Subscription[]> {
 export async function addSubscriptionAction(
   subscriptionData: Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode }
 ): Promise<Subscription> {
-  if (!subscriptionData.categoryId || typeof subscriptionData.categoryId !== 'string' || subscriptionData.categoryId.trim() === '') {
-    console.error("addSubscriptionAction: categoryId is missing or invalid.", subscriptionData);
+  const parsedData = AddSubscriptionInputSchema.parse(subscriptionData);
+  if (!parsedData.categoryId || typeof parsedData.categoryId !== 'string' || parsedData.categoryId.trim() === '') {
+    console.error("addSubscriptionAction: categoryId is missing or invalid.", parsedData);
     throw new Error('Subscription categoryId is missing or invalid.');
   }
   const db = await getDb();
-  const amounts = await convertAmountToAllCurrencies(subscriptionData.originalAmount, subscriptionData.originalCurrency);
+  const amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency);
   const newSubscriptionId = generateId();
 
   const dbAmountParams = mapAmountsToDbPlaceholders(amounts);
@@ -250,37 +309,38 @@ export async function addSubscriptionAction(
      VALUES ($id, $name, $categoryId, $originalAmount, $originalCurrency, ${amountDbValuePlaceholders}, $startDate, $endDate, $description)`,
     {
       $id: newSubscriptionId,
-      $name: subscriptionData.name,
-      $categoryId: subscriptionData.categoryId,
-      $originalAmount: subscriptionData.originalAmount,
-      $originalCurrency: subscriptionData.originalCurrency,
+      $name: parsedData.name,
+      $categoryId: parsedData.categoryId,
+      $originalAmount: parsedData.originalAmount,
+      $originalCurrency: parsedData.originalCurrency,
       ...dbAmountParams,
-      $startDate: subscriptionData.startDate,
-      $endDate: subscriptionData.endDate,
-      $description: subscriptionData.description,
+      $startDate: parsedData.startDate,
+      $endDate: parsedData.endDate,
+      $description: parsedData.description,
     }
   );
-  return { ...subscriptionData, id: newSubscriptionId, amounts };
+  return { ...parsedData, startDate: parsedData.startDate, endDate: parsedData.endDate, id: newSubscriptionId, amounts };
 }
 
 export async function updateSubscriptionAction(updatedSubscriptionData: Subscription): Promise<Subscription> {
-  if (!updatedSubscriptionData.categoryId || typeof updatedSubscriptionData.categoryId !== 'string' || updatedSubscriptionData.categoryId.trim() === '') {
-    console.error("updateSubscriptionAction: categoryId is missing or invalid.", updatedSubscriptionData);
+  const parsedData = UpdateSubscriptionInputSchema.parse(updatedSubscriptionData);
+  if (!parsedData.categoryId || typeof parsedData.categoryId !== 'string' || parsedData.categoryId.trim() === '') {
+    console.error("updateSubscriptionAction: categoryId is missing or invalid.", parsedData);
     throw new Error('Subscription categoryId is missing or invalid for update.');
   }
   const db = await getDb();
-  const existingSubRow = await db.get('SELECT originalAmount, originalCurrency FROM subscriptions WHERE id = ?', updatedSubscriptionData.id);
+  const existingSubRow = await db.get('SELECT originalAmount, originalCurrency FROM subscriptions WHERE id = ?', parsedData.id);
   
   if (!existingSubRow) {
     throw new Error("Subscription not found for update.");
   }
 
-  let amounts = updatedSubscriptionData.amounts;
+  let amounts = parsedData.amounts;
   if (
-    Number(existingSubRow.originalAmount) !== updatedSubscriptionData.originalAmount ||
-    existingSubRow.originalCurrency !== updatedSubscriptionData.originalCurrency
+    Number(existingSubRow.originalAmount) !== parsedData.originalAmount ||
+    existingSubRow.originalCurrency !== parsedData.originalCurrency
   ) {
-    amounts = await convertAmountToAllCurrencies(updatedSubscriptionData.originalAmount, updatedSubscriptionData.originalCurrency);
+    amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency);
   }
   
   const dbAmountParams = mapAmountsToDbPlaceholders(amounts);
@@ -289,21 +349,22 @@ export async function updateSubscriptionAction(updatedSubscriptionData: Subscrip
     `UPDATE subscriptions SET name = $name, categoryId = $categoryId, originalAmount = $originalAmount, originalCurrency = $originalCurrency, ${SUPPORTED_CURRENCIES.map(c => `amount_${c.toLowerCase()} = $amount_${c.toLowerCase()}`).join(', ')}, startDate = $startDate, endDate = $endDate, description = $description
      WHERE id = $id`,
     {
-      $id: updatedSubscriptionData.id,
-      $name: updatedSubscriptionData.name,
-      $categoryId: updatedSubscriptionData.categoryId,
-      $originalAmount: updatedSubscriptionData.originalAmount,
-      $originalCurrency: updatedSubscriptionData.originalCurrency,
+      $id: parsedData.id,
+      $name: parsedData.name,
+      $categoryId: parsedData.categoryId,
+      $originalAmount: parsedData.originalAmount,
+      $originalCurrency: parsedData.originalCurrency,
       ...dbAmountParams,
-      $startDate: updatedSubscriptionData.startDate,
-      $endDate: updatedSubscriptionData.endDate,
-      $description: updatedSubscriptionData.description,
+      $startDate: parsedData.startDate,
+      $endDate: parsedData.endDate,
+      $description: parsedData.description,
     }
   );
-  return { ...updatedSubscriptionData, amounts };
+  return { ...parsedData, startDate: parsedData.startDate, endDate: parsedData.endDate, amounts };
 }
 
 export async function deleteSubscriptionAction(id: string): Promise<{ success: boolean }> {
+  z.string().uuid("Invalid subscription ID.").parse(id);
   const db = await getDb();
   await db.run('DELETE FROM subscriptions WHERE id = ?', id);
   return { success: true };
@@ -314,3 +375,4 @@ export async function deleteAllSubscriptionsAction(): Promise<{ success: boolean
   await db.run('DELETE FROM subscriptions');
   return { success: true };
 }
+    
