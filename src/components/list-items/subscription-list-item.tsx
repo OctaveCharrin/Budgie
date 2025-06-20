@@ -49,6 +49,10 @@ export function SubscriptionListItem({ subscription, onEdit }: SubscriptionListI
     ? formatCurrency(subscription.originalAmount, subscription.originalCurrency)
     : "N/A";
 
+  const dateDetails = subscription.endDate 
+    ? `Starts: ${format(new Date(subscription.startDate), "MMM dd, yyyy")} | Ends: ${format(new Date(subscription.endDate), "MMM dd, yyyy")}`
+    : `Starts: ${format(new Date(subscription.startDate), "MMM dd, yyyy")} (Ongoing)`;
+
 
   return (
     <Card className="w-full shadow-md hover:shadow-lg transition-shadow duration-200">
@@ -60,7 +64,7 @@ export function SubscriptionListItem({ subscription, onEdit }: SubscriptionListI
               {subscription.name}
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              Category: {categoryName} | Starts: {format(new Date(subscription.startDate), "MMM dd, yyyy")}
+              Category: {categoryName} | {dateDetails}
             </p>
           </div>
           <div className="text-right">

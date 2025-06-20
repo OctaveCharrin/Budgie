@@ -23,7 +23,7 @@ interface DataContextProps {
   deleteAllExpenses: () => Promise<void>;
   subscriptions: Subscription[];
   setSubscriptions: (subscriptions: Subscription[] | ((val: Subscription[]) => Subscription[])) => void;
-  addSubscription: (subscriptionData: Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode; name: string; categoryId: string; startDate: string; description?: string; }) => Promise<void>;
+  addSubscription: (subscriptionData: Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode; name: string; categoryId: string; startDate: string; endDate?:string; description?: string; }) => Promise<void>;
   updateSubscription: (subscription: Subscription) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   categories: Category[];
@@ -83,7 +83,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       const updatedSettingsData = { ...settings, ...newSettings };
       const result = await updateSettingsAction(updatedSettingsData);
       setSettings(result);
-      // No toast here, it's often done in the settings tab itself
     } catch (error) {
       console.error("Failed to update settings:", error);
       toast({ variant: "destructive", title: "Error", description: "Could not update settings." });
@@ -131,7 +130,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addSubscriptionContext = async (subscriptionData: Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode; name: string; categoryId: string; startDate: string; description?: string; }) => {
+  const addSubscriptionContext = async (subscriptionData: Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode; name: string; categoryId: string; startDate: string; endDate?: string; description?: string; }) => {
     try {
       const newSubscription = await addSubscriptionAction(subscriptionData);
       setSubscriptions(prev => [newSubscription, ...prev]);
@@ -211,28 +210,19 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const getAmountInDefaultCurrencyContext = (item: Expense | Subscription): number => {
     if (isLoading || !settings.defaultCurrency) return 0;
 
-    // For both Expense and new Subscription model that include 'amounts'
     if (item.amounts && typeof item.amounts[settings.defaultCurrency] === 'number') {
       return item.amounts[settings.defaultCurrency];
     }
     
-    // Fallback for older Subscription data that might not have 'amounts' or 'originalCurrency'
-    // This assumes the 'amount' field on old subscriptions was in the current default display currency
-    // This is a simplification; true data migration would be more robust.
     if ('amount' in item && !item.amounts && !('originalAmount'in item) && typeof (item as any).amount === 'number') {
         return (item as any).amount;
     }
 
-    // If 'amounts' is missing, but 'originalAmount' and 'originalCurrency' exist
-    // and the 'originalCurrency' matches the default display currency
     if ('originalAmount' in item && item.originalCurrency === settings.defaultCurrency) {
         return item.originalAmount;
     }
     
-    // If we reach here, it means we can't determine the amount in the default currency.
-    // This might happen if 'amounts' is missing and originalCurrency is different from default,
-    // or if data is malformed.
-    return 0; // Or handle as NaN or throw an error, depending on desired behavior for missing data
+    return 0; 
   };
 
 

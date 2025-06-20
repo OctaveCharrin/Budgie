@@ -24,10 +24,11 @@ export interface Subscription {
   id: string;
   name: string;
   categoryId: string;
-  originalAmount: number; // Renamed from amount
-  originalCurrency: CurrencyCode; // New field
-  amounts: Record<CurrencyCode, number>; // New field, stores amount in all supported currencies
+  originalAmount: number; 
+  originalCurrency: CurrencyCode; 
+  amounts: Record<CurrencyCode, number>; 
   startDate: string; // ISO string
+  endDate?: string; // Optional ISO string
   description?: string;
 }
 
@@ -41,3 +42,4 @@ export interface ChartDataPoint {
   name: string;
   [key: string]: number | string;
 }
+

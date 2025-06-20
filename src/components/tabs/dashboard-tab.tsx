@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ExpenseListItem } from "@/components/list-items/expense-list-item";
 import type { Expense } from "@/lib/types";
-import { startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO, isAfter, isEqual } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
 
@@ -24,6 +24,7 @@ export function DashboardTab() {
   const [lastMonthTotalExpenses, setLastMonthTotalExpenses] = useState(0);
   const [percentageChange, setPercentageChange] = useState(0);
   const [totalMonthlySubscriptionsCost, setTotalMonthlySubscriptionsCost] = useState(0);
+  const [activeSubscriptionsCount, setActiveSubscriptionsCount] = useState(0);
 
   useEffect(() => {
     if (isLoading || !settings.defaultCurrency) return;
@@ -56,14 +57,25 @@ export function DashboardTab() {
     } else {
       setPercentageChange(0); 
     }
+    
+    let activeSubsTotalCost = 0;
+    let currentActiveSubsCount = 0;
+    subscriptions.forEach(sub => {
+      const subStartDate = parseISO(sub.startDate);
+      const subEndDate = sub.endDate ? parseISO(sub.endDate) : null;
 
-    const activeSubsTotal = subscriptions.reduce((acc, sub) => {
-        if (parseISO(sub.startDate) <= currentMonthEnd) {
-            return acc + getAmountInDefaultCurrency(sub);
-        }
-        return acc;
-    }, 0);
-    setTotalMonthlySubscriptionsCost(activeSubsTotal);
+      // Check if the subscription is active in the current month
+      const isActiveInCurrentMonth = 
+        (isEqual(subStartDate, currentMonthEnd) || isAfter(currentMonthEnd, subStartDate)) && // Starts before or on month end
+        (!subEndDate || isEqual(subEndDate, currentMonthStart) || isAfter(subEndDate, currentMonthStart)); // No end date OR ends after or on month start
+      
+      if (isActiveInCurrentMonth) {
+        activeSubsTotalCost += getAmountInDefaultCurrency(sub);
+        currentActiveSubsCount++;
+      }
+    });
+    setTotalMonthlySubscriptionsCost(activeSubsTotalCost);
+    setActiveSubscriptionsCount(currentActiveSubsCount);
 
   }, [expenses, subscriptions, isLoading, settings, getAmountInDefaultCurrency]);
 
@@ -109,33 +121,45 @@ export function DashboardTab() {
               <Skeleton className="h-4 w-1/2" />
             </CardContent>
           </Card>
-          <div className="lg:col-span-1 md:col-span-2 flex items-center justify-center p-2 sm:p-6">
-            <Skeleton className="h-12 w-full rounded-lg" /> {/* Placeholder for Add New Expense button */}
+           <div className="lg:col-span-1 md:col-span-2 flex items-center justify-center p-2 sm:p-6">
+             <Dialog open={isAddExpenseOpen} onOpenChange={(isOpen) => {
+               if (!isOpen) closeDialogAndReset(); else setIsAddExpenseOpen(true);
+             }}>
+              <DialogTrigger asChild>
+                 <Skeleton className="h-12 w-full rounded-lg" />
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                   <DialogTitle><Skeleton className="h-6 w-3/4" /></DialogTitle>
+                </DialogHeader>
+                 <Skeleton className="h-64 w-full" />
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
         <div>
-          <Skeleton className="h-6 w-48 mb-3" /> {/* Placeholder for "Recent Expenses" title */}
+          <Skeleton className="h-6 w-48 mb-3" />
           <div className="space-y-3 pr-3">
             {[...Array(3)].map((_, i) => (
               <Card key={i} className="w-full">
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start">
                     <div>
-                      <Skeleton className="h-5 w-32 mb-1" /> {/* Category Name */}
-                      <Skeleton className="h-3 w-24" /> {/* Date */}
+                      <Skeleton className="h-5 w-32 mb-1" /> 
+                      <Skeleton className="h-3 w-24" /> 
                     </div>
                     <div className="text-right">
-                      <Skeleton className="h-6 w-20 mb-1" /> {/* Amount */}
-                      <Skeleton className="h-3 w-16" /> {/* Original Amount (optional) */}
+                      <Skeleton className="h-6 w-20 mb-1" /> 
+                      <Skeleton className="h-3 w-16" /> 
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="py-2">
-                   <Skeleton className="h-4 w-full" /> {/* Description (optional) */}
+                   <Skeleton className="h-4 w-full" /> 
                 </CardContent>
                 <CardFooter className="flex justify-end gap-2 pt-2 pb-3 px-3">
-                  <Skeleton className="h-8 w-8 rounded" /> {/* Edit Button */}
-                  <Skeleton className="h-8 w-8 rounded" /> {/* Delete Button */}
+                  <Skeleton className="h-8 w-8 rounded" /> 
+                  <Skeleton className="h-8 w-8 rounded" /> 
                 </CardFooter>
               </Card>
             ))}
@@ -179,7 +203,7 @@ export function DashboardTab() {
             <div className="text-2xl font-bold">
                 {formatCurrency(totalMonthlySubscriptionsCost, settings.defaultCurrency)}
             </div>
-            <p className="text-xs text-muted-foreground">{subscriptions.length} active subscriptions</p>
+            <p className="text-xs text-muted-foreground">{activeSubscriptionsCount} active subscriptions</p>
           </CardContent>
         </Card>
         <div className="lg:col-span-1 md:col-span-2 flex items-center justify-center p-2 sm:p-6">

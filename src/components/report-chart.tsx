@@ -5,8 +5,17 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis, Toolti
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ChartConfig } from "@/components/ui/chart"; 
 import { useData } from "@/contexts/data-context";
-import type { ReportPeriod, ChartDataPoint, Category } from "@/lib/types"; // Removed CurrencyCode as it's handled by settings
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, eachDayOfInterval, eachMonthOfInterval, isWithinInterval, parseISO, addYears, getDaysInMonth } from "date-fns"; // Removed differenceInMonths
+import type { ReportPeriod, ChartDataPoint } from "@/lib/types";
+import { 
+  format, 
+  startOfWeek, endOfWeek, 
+  startOfMonth, endOfMonth, 
+  startOfYear, endOfYear, 
+  eachDayOfInterval, eachMonthOfInterval, 
+  isWithinInterval, parseISO, 
+  getDaysInMonth,
+  isBefore, isEqual, isAfter
+} from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
 
@@ -31,28 +40,27 @@ export function ReportChart({ period, date }: ReportChartProps) {
   const calculateReportData = (): ChartDataPoint[] => {
     if (isLoading || !defaultCurrency || !categories) return [];
 
-    let periodStart: Date, periodEnd: Date;
+    let reportPeriodStart: Date, reportPeriodEnd: Date;
 
     switch (period) {
       case 'weekly':
-        periodStart = startOfWeek(date, { weekStartsOn: 1 });
-        periodEnd = endOfWeek(date, { weekStartsOn: 1 });
+        reportPeriodStart = startOfWeek(date, { weekStartsOn: 1 });
+        reportPeriodEnd = endOfWeek(date, { weekStartsOn: 1 });
         break;
       case 'monthly':
-        periodStart = startOfMonth(date);
-        periodEnd = endOfMonth(date);
+        reportPeriodStart = startOfMonth(date);
+        reportPeriodEnd = endOfMonth(date);
         break;
       case 'yearly':
-        periodStart = startOfYear(date);
-        periodEnd = endOfYear(date);
+        reportPeriodStart = startOfYear(date);
+        reportPeriodEnd = endOfYear(date);
         break;
     }
 
     const aggregatedData: { [categoryId: string]: number } = {};
 
-    // Aggregate expenses
     expenses.forEach(expense => {
-      if (isWithinInterval(parseISO(expense.date), { start: periodStart, end: periodEnd })) {
+      if (isWithinInterval(parseISO(expense.date), { start: reportPeriodStart, end: reportPeriodEnd })) {
         const amountInDefault = getAmountInDefaultCurrency(expense);
         aggregatedData[expense.categoryId] = (aggregatedData[expense.categoryId] || 0) + amountInDefault;
       }
@@ -62,34 +70,57 @@ export function ReportChart({ period, date }: ReportChartProps) {
     
     subscriptions.forEach(sub => {
       const subStartDate = parseISO(sub.startDate);
+      const subEndDate = sub.endDate ? parseISO(sub.endDate) : null;
       let subContribution = 0;
-      const amountInDefault = getAmountInDefaultCurrency(sub);
+      const monthlyAmountInDefault = getAmountInDefaultCurrency(sub);
 
-      if (subStartDate > periodEnd) return; 
+      if (isAfter(subStartDate, reportPeriodEnd)) return; // Subscription starts after the report period ends
 
       if (period === 'monthly') {
-        if (subStartDate <= periodEnd && isWithinInterval(periodStart, {start: subStartDate, end: addYears(subStartDate, 100)})) {
-            subContribution = amountInDefault;
+        // Active if starts before/on report end AND (no end date OR ends after/on report start)
+        const isActiveInMonth = 
+          (isEqual(subStartDate, reportPeriodEnd) || isBefore(subStartDate, reportPeriodEnd)) &&
+          (!subEndDate || isEqual(subEndDate, reportPeriodStart) || isAfter(subEndDate, reportPeriodStart));
+        if (isActiveInMonth) {
+          subContribution = monthlyAmountInDefault;
         }
       } else if (period === 'yearly') {
-        const yearMonths = eachMonthOfInterval({ start: periodStart, end: periodEnd });
-        yearMonths.forEach(monthInYearStart => {
-          const monthInYearEnd = endOfMonth(monthInYearStart);
-          if (subStartDate <= monthInYearEnd && isWithinInterval(monthInYearStart, {start: subStartDate, end: addYears(subStartDate, 100)})) {
-             subContribution += amountInDefault;
+        const yearMonths = eachMonthOfInterval({ start: reportPeriodStart, end: reportPeriodEnd });
+        yearMonths.forEach(monthInYear => {
+          const monthStart = startOfMonth(monthInYear);
+          const monthEnd = endOfMonth(monthInYear);
+          const isActiveInMonth = 
+            (isEqual(subStartDate, monthEnd) || isBefore(subStartDate, monthEnd)) &&
+            (!subEndDate || isEqual(subEndDate, monthStart) || isAfter(subEndDate, monthStart));
+          if (isActiveInMonth) {
+             subContribution += monthlyAmountInDefault;
           }
         });
       } else { // weekly
-        const monthOfPeriodStart = startOfMonth(periodStart);
-        // const monthOfPeriodEnd = endOfMonth(periodStart); 
-         if (subStartDate <= periodEnd && isWithinInterval(monthOfPeriodStart, {start: subStartDate, end: addYears(subStartDate, 100)}) ) {
-            const daysInMonth = getDaysInMonth(monthOfPeriodStart);
-            const weekDays = eachDayOfInterval({start: periodStart, end: periodEnd});
-            let activeDaysInWeek = 0;
-            weekDays.forEach(day => {
-                if(day >= subStartDate) activeDaysInWeek++;
-            })
-            subContribution = (amountInDefault / daysInMonth) * activeDaysInWeek;
+        const billingMonthForWeekStart = startOfMonth(reportPeriodStart); // The month this week's expenses are billed against for this sub
+        const billingMonthForWeekEnd = endOfMonth(reportPeriodStart);
+
+        // Is the subscription active at all during this billing month?
+        const isActiveInBillingMonth =
+          (isEqual(subStartDate, billingMonthForWeekEnd) || isBefore(subStartDate, billingMonthForWeekEnd)) &&
+          (!subEndDate || isEqual(subEndDate, billingMonthForWeekStart) || isAfter(subEndDate, billingMonthForWeekStart));
+
+        if (isActiveInBillingMonth) {
+            const daysInBillingMonth = getDaysInMonth(billingMonthForWeekStart);
+            if (daysInBillingMonth > 0) {
+                const dailyRate = monthlyAmountInDefault / daysInBillingMonth;
+                const weekDaysInterval = eachDayOfInterval({start: reportPeriodStart, end: reportPeriodEnd});
+                let activeDaysInWeek = 0;
+                weekDaysInterval.forEach(dayInWeek => {
+                    const isActiveThisDay = 
+                        (isEqual(dayInWeek, subStartDate) || isAfter(dayInWeek, subStartDate)) &&
+                        (!subEndDate || isEqual(dayInWeek, subEndDate) || isBefore(dayInWeek, subEndDate));
+                    if (isActiveThisDay) {
+                        activeDaysInWeek++;
+                    }
+                });
+                subContribution = dailyRate * activeDaysInWeek;
+            }
         }
       }
       
@@ -122,7 +153,7 @@ export function ReportChart({ period, date }: ReportChartProps) {
     return (
       <Card>
         <CardHeader>
-           <Skeleton className="h-7 w-3/4" /> {/* Title Skeleton */}
+           <Skeleton className="h-7 w-3/4" />
         </CardHeader>
         <CardContent className="h-[350px] flex items-center justify-center">
           <Skeleton className="h-full w-full" />

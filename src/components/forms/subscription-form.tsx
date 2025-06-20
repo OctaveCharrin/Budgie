@@ -33,13 +33,21 @@ import { useToast } from "@/hooks/use-toast";
 import { SUPPORTED_CURRENCIES } from "@/lib/constants";
 import { useEffect } from "react";
 
-// categoryId removed from schema
 const formSchema = z.object({
   name: z.string().min(1, "Subscription name is required."),
   startDate: z.date({ required_error: "Start date is required." }),
+  endDate: z.date().optional(),
   originalAmount: z.coerce.number().positive("Amount must be positive."),
   originalCurrency: z.enum(SUPPORTED_CURRENCIES, { required_error: "Currency is required." }),
   description: z.string().optional(),
+}).refine(data => {
+  if (data.endDate && data.startDate > data.endDate) {
+    return false;
+  }
+  return true;
+}, {
+  message: "End date cannot be earlier than start date.",
+  path: ["endDate"], 
 });
 
 type SubscriptionFormValues = z.infer<typeof formSchema>;
@@ -59,7 +67,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
       ? { 
           name: subscription.name,
           startDate: new Date(subscription.startDate), 
-          // categoryId removed
+          endDate: subscription.endDate ? new Date(subscription.endDate) : undefined,
           originalAmount: Number(subscription.originalAmount), 
           originalCurrency: subscription.originalCurrency,
           description: subscription.description || "" 
@@ -67,10 +75,10 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
       : { 
           name: "",
           startDate: new Date(), 
+          endDate: undefined,
           originalAmount: '' as unknown as number, 
           originalCurrency: settings.defaultCurrency, 
           description: "",
-          // categoryId removed
         },
   });
 
@@ -79,10 +87,10 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
       form.reset({ 
         name: "",
         startDate: new Date(), 
+        endDate: undefined,
         originalAmount: '' as unknown as number, 
         originalCurrency: settings.defaultCurrency, 
         description: "",
-        // categoryId removed
       });
     }
   }, [settings.defaultCurrency, subscription, form, isDataLoading]);
@@ -103,36 +111,32 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
     }
     const subscriptionsCategoryId = subscriptionsCategory.id;
 
+    const dataToSave = {
+      name: values.name,
+      startDate: values.startDate.toISOString(),
+      endDate: values.endDate ? values.endDate.toISOString() : undefined,
+      categoryId: subscriptionsCategoryId, 
+      originalAmount: values.originalAmount,
+      originalCurrency: values.originalCurrency,
+      description: values.description,
+    };
+
     if (subscription) { 
       const updatedSubscriptionData: Subscription = {
         ...subscription, 
-        name: values.name,
-        startDate: values.startDate.toISOString(),
-        categoryId: subscriptionsCategoryId, // Set programmatically
-        originalAmount: values.originalAmount,
-        originalCurrency: values.originalCurrency,
-        description: values.description,
+        ...dataToSave,
       };
       await updateSubscription(updatedSubscriptionData);
       toast({ title: "Subscription Updated", description: "Subscription details have been successfully updated." });
     } else { 
-      const newSubscriptionData = {
-        name: values.name,
-        startDate: values.startDate.toISOString(),
-        categoryId: subscriptionsCategoryId, // Set programmatically
-        originalAmount: values.originalAmount,
-        originalCurrency: values.originalCurrency,
-        description: values.description,
-      };
-      // The addSubscription type in context expects these fields explicitly.
-      await addSubscription(newSubscriptionData as Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode; name: string; categoryId: string; startDate: string; description?: string; });
+      await addSubscription(dataToSave as Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode; name: string; categoryId: string; startDate: string; endDate?: string; description?: string; });
       toast({ title: "Subscription Added", description: "New subscription has been successfully added." });
     }
     onSave();
     form.reset({ 
         name: "",
         startDate: new Date(), 
-        // categoryId removed
+        endDate: undefined,
         originalAmount: '' as unknown as number, 
         originalCurrency: settings.defaultCurrency, 
         description: '' 
@@ -156,44 +160,87 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
           )}
         />
         
-        <FormField
-          control={form.control}
-          name="startDate"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Start Date</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full pl-3 text-left font-normal",
-                        !field.value && "text-muted-foreground"
-                      )}
-                    >
-                      {field.value ? (
-                        format(field.value, "PPP")
-                      ) : (
-                        <span>Pick a date</span>
-                      )}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={field.value}
-                    onSelect={field.onChange}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="startDate"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>Start Date</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full pl-3 text-left font-normal",
+                          !field.value && "text-muted-foreground"
+                        )}
+                      >
+                        {field.value ? (
+                          format(field.value, "PPP")
+                        ) : (
+                          <span>Pick a date</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={field.onChange}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+           <FormField
+            control={form.control}
+            name="endDate"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>End Date (Optional)</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full pl-3 text-left font-normal",
+                          !field.value && "text-muted-foreground"
+                        )}
+                      >
+                        {field.value ? (
+                          format(field.value, "PPP")
+                        ) : (
+                          <span>No end date</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={(date) => field.onChange(date)} // Allow undefined for clearing
+                      initialFocus
+                      disabled={(date) => 
+                        form.getValues("startDate") && date < form.getValues("startDate")
+                      }
+                    />
+                  </PopoverContent>
+                </Popover>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         
         <div className="flex gap-4">
             <FormField
@@ -203,7 +250,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
                 <FormItem className="flex-grow">
                 <FormLabel>Monthly Amount</FormLabel>
                 <FormControl>
-                    <Input type="number" placeholder="0.00" {...field} step="0.01" value={field.value === undefined || isNaN(field.value) ? '' : field.value} />
+                    <Input type="number" placeholder="0.00" {...field} step="0.01" value={field.value === undefined || field.value === null || isNaN(field.value) ? '' : field.value} onChange={(e) => field.onChange(parseFloat(e.target.value) || '')} />
                 </FormControl>
                 <FormMessage />
                 </FormItem>
@@ -235,8 +282,6 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
             />
         </div>
 
-        {/* Category Field Removed */}
-
         <FormField
           control={form.control}
           name="description"
@@ -257,4 +302,3 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
     </Form>
   );
 }
-

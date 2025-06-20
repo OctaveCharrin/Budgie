@@ -73,11 +73,8 @@ export async function getExpensesAction(): Promise<Expense[]> {
         amounts: amounts,
       } as Expense;
     }
-    if (!exp.amounts && exp.originalAmount && exp.originalCurrency) { // If amounts is missing but new fields exist
+    if (!exp.amounts && exp.originalAmount && exp.originalCurrency) { 
         // This state implies it was saved before amounts field was populated correctly or conversion failed.
-        // For now, we'll rely on the caller (e.g. context) to handle display or re-attempt conversion.
-        // Ideally, we'd trigger a re-conversion here if possible and save it.
-        // For now, return as is, context will handle it.
     }
     return exp;
   });
@@ -115,7 +112,7 @@ export async function updateExpenseAction(updatedExpenseData: Expense): Promise<
   if (
     existingExpense.originalAmount !== updatedExpenseData.originalAmount ||
     existingExpense.originalCurrency !== updatedExpenseData.originalCurrency ||
-    !existingExpense.amounts // If amounts was somehow missing
+    !existingExpense.amounts 
   ) {
     amounts = await convertAmountToAllCurrencies(updatedExpenseData.originalAmount, updatedExpenseData.originalCurrency);
   }
@@ -145,17 +142,12 @@ export async function deleteAllExpensesAction(): Promise<{ success: boolean }> {
 // Subscription Actions
 export async function getSubscriptionsAction(): Promise<Subscription[]> {
   const subscriptions = await readData<Subscription[]>(DATA_FILE_PATHS.subscriptions, []);
-  const appSettings = await getSettingsAction(); // Needed for default currency assumption for old data
+  const appSettings = await getSettingsAction(); 
 
-  // Attempt to "soft" migrate old subscriptions if they don't have the new currency fields
   const migratedSubscriptions = await Promise.all(
     subscriptions.map(async (sub) => {
       if (typeof (sub as any).amount === 'number' && !sub.originalCurrency && !sub.amounts) {
-        // This is an old subscription format
         const originalAmount = (sub as any).amount;
-        // Assume old subscriptions were in the app's default currency AT THE TIME OF SAVING.
-        // For simplicity, we'll use the *current* default currency.
-        // This is an assumption and might not be accurate for very old data if default currency changed.
         const originalCurrency = appSettings.defaultCurrency; 
         try {
           const amounts = await convertAmountToAllCurrencies(originalAmount, originalCurrency);
@@ -167,16 +159,14 @@ export async function getSubscriptionsAction(): Promise<Subscription[]> {
           } as Subscription;
         } catch (error) {
           console.warn(`Failed to auto-migrate subscription ${sub.id} to multi-currency:`, error);
-          // Return with minimal structure, UI will have to handle it
            return {
             ...sub,
             originalAmount,
             originalCurrency,
-            amounts: { [originalCurrency]: originalAmount } as Record<CurrencyCode, number>, // Basic fallback
+            amounts: { [originalCurrency]: originalAmount } as Record<CurrencyCode, number>, 
           } as Subscription;
         }
       }
-      // If it has originalCurrency but not amounts (e.g. failed conversion before)
       if (sub.originalCurrency && !sub.amounts) {
         try {
             const amounts = await convertAmountToAllCurrencies(sub.originalAmount, sub.originalCurrency);
@@ -186,7 +176,7 @@ export async function getSubscriptionsAction(): Promise<Subscription[]> {
             return { ...sub, amounts: { [sub.originalCurrency]: sub.originalAmount } as Record<CurrencyCode, number> };
         }
       }
-      return sub; // Already in new format or couldn't migrate
+      return sub; 
     })
   );
   return migratedSubscriptions;
@@ -206,6 +196,7 @@ export async function addSubscriptionAction(
     originalCurrency: subscriptionData.originalCurrency,
     amounts,
     startDate: subscriptionData.startDate,
+    endDate: subscriptionData.endDate, // Add endDate
     description: subscriptionData.description,
   };
   subscriptions.unshift(newSubscription);
@@ -222,9 +213,8 @@ export async function updateSubscriptionAction(updatedSubscriptionData: Subscrip
   }
 
   let amounts = existingSubscription.amounts;
-  // If original amount or currency changed, or amounts are missing, recalculate all currency values
   if (
-    !existingSubscription.amounts || // Ensure amounts exist
+    !existingSubscription.amounts || 
     existingSubscription.originalAmount !== updatedSubscriptionData.originalAmount ||
     existingSubscription.originalCurrency !== updatedSubscriptionData.originalCurrency
   ) {
@@ -234,6 +224,7 @@ export async function updateSubscriptionAction(updatedSubscriptionData: Subscrip
   const fullyUpdatedSubscription: Subscription = {
     ...updatedSubscriptionData,
     amounts,
+    endDate: updatedSubscriptionData.endDate, // Ensure endDate is part of the update
   };
 
   subscriptions = subscriptions.map(sub => sub.id === fullyUpdatedSubscription.id ? fullyUpdatedSubscription : sub);
