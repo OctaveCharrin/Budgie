@@ -25,30 +25,12 @@ interface DailyExpensesLineChartProps {
 interface ChartData {
   date: string; // Formatted date for display
   amount: number;
-  movingAverage?: number | null;
 }
-
-// Helper function to calculate moving average
-const calculateMovingAverage = (data: number[], windowSize: number): (number | null)[] => {
-  if (windowSize <= 0) return data.map(() => null);
-  const result: (number | null)[] = [];
-  for (let i = 0; i < data.length; i++) {
-    if (i < windowSize - 1) {
-      result.push(null); // Not enough data for a full window
-    } else {
-      const windowSlice = data.slice(i - windowSize + 1, i + 1);
-      const sum = windowSlice.reduce((acc, val) => acc + val, 0);
-      result.push(sum / windowSize);
-    }
-  }
-  return result;
-};
 
 
 export function DailyExpensesLineChart({ period, selectedDate, accumulate }: DailyExpensesLineChartProps) {
   const { expenses, subscriptions, settings, isLoading: isDataContextLoading, getAmountInDefaultCurrency } = useData();
   const defaultCurrency = settings.defaultCurrency;
-  const MOVING_AVERAGE_WINDOW = 7;
 
 
   const { chartData, totalAverageForPeriod } = useMemo(() => {
@@ -87,7 +69,7 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
       subscriptions.forEach(sub => {
         const subStartDate = parseISO(sub.startDate);
         const subEndDate = sub.endDate ? parseISO(sub.endDate) : null;
-        const isSubscriptionActiveToday = 
+        const isSubscriptionActiveToday =
           (isEqual(day, subStartDate) || isAfter(day, subStartDate)) &&
           (!subEndDate || isEqual(day, subEndDate) || isBefore(day, subEndDate));
 
@@ -99,9 +81,9 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
           }
         }
       });
-      
+
       rawDailyAmounts.push(totalForDay);
-      
+
       let dateFormat = "MMM d";
       if (period === 'yearly' && daysInPeriod.length > 60) dateFormat = "MMM";
       else if (period === 'yearly' && daysInPeriod.length <= 60) dateFormat = "MMM d";
@@ -111,7 +93,6 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
     });
 
     let finalChartData = [...dailyTotals];
-    const movingAverages = !accumulate ? calculateMovingAverage(rawDailyAmounts, MOVING_AVERAGE_WINDOW) : [];
 
     if (accumulate) {
       let runningTotal = 0;
@@ -119,13 +100,8 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
         runningTotal += item.amount;
         return { ...item, amount: runningTotal };
       });
-    } else {
-        finalChartData = dailyTotals.map((item, index) => ({
-            ...item,
-            movingAverage: movingAverages[index],
-        }));
     }
-    
+
     const totalSpendingForPeriod = rawDailyAmounts.reduce((sum, amount) => sum + amount, 0);
     const avgForPeriod = daysInPeriod.length > 0 ? totalSpendingForPeriod / daysInPeriod.length : 0;
 
@@ -136,7 +112,7 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
   if (isDataContextLoading || !defaultCurrency) {
     return <Skeleton className="h-[300px] w-full" />;
   }
-  
+
   if (chartData.length === 0) {
     return (
         <div className="h-[300px] flex items-center justify-center">
@@ -148,17 +124,11 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const mainPayload = payload.find(p => p.dataKey === 'amount');
-      const maPayload = payload.find(p => p.dataKey === 'movingAverage');
-      
+
       return (
         <div className="p-2 bg-background border border-border rounded-md shadow-lg">
           <p className="font-semibold">{`Date: ${label}`}</p>
           {mainPayload && <p className="text-sm" style={{ color: mainPayload.stroke }}>{`${mainPayload.name}: ${formatCurrency(mainPayload.value, defaultCurrency)}`}</p>}
-          {maPayload && typeof maPayload.value === 'number' && (
-            <p className="text-sm" style={{ color: maPayload.stroke }}>
-              {`${maPayload.name}: ${formatCurrency(maPayload.value, defaultCurrency)}`}
-            </p>
-          )}
         </div>
       );
     }
@@ -171,16 +141,16 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
       <ResponsiveContainer>
         <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}> {/* Adjusted left margin */}
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis 
-            dataKey="date" 
-            stroke="hsl(var(--muted-foreground))" 
+          <XAxis
+            dataKey="date"
+            stroke="hsl(var(--muted-foreground))"
             fontSize={12}
             tickLine={false}
             axisLine={false}
             interval={period === 'yearly' && chartData.length > 12 ? Math.floor(chartData.length / 12) : 'preserveStartEnd'}
           />
-          <YAxis 
-            stroke="hsl(var(--muted-foreground))" 
+          <YAxis
+            stroke="hsl(var(--muted-foreground))"
             fontSize={12}
             tickLine={false}
             axisLine={false}
@@ -189,40 +159,27 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
-          <Line 
-            type="monotone" 
-            dataKey="amount" 
-            stroke="hsl(var(--primary))" 
-            strokeWidth={2} 
+          <Line
+            type="monotone"
+            dataKey="amount"
+            stroke="hsl(var(--primary))"
+            strokeWidth={2}
             dot={{ r: 3, fill: 'hsl(var(--primary))' }}
             activeDot={{ r: 5 }}
             name={accumulate ? "Accumulated Spending" : "Daily Spending"}
             animationDuration={500}
           />
-          {!accumulate && (
-            <Line
-              type="monotone"
-              dataKey="movingAverage"
-              stroke="hsl(var(--destructive))"
-              strokeWidth={2}
-              dot={false}
-              activeDot={false}
-              name={`${MOVING_AVERAGE_WINDOW}-Day Moving Avg.`}
-              animationDuration={500}
-              connectNulls={false}
-            />
-          )}
           {!accumulate && totalAverageForPeriod > 0 && (
-             <ReferenceLine 
-                y={totalAverageForPeriod} 
-                stroke="hsl(var(--destructive))" 
+             <ReferenceLine
+                y={totalAverageForPeriod}
+                stroke="hsl(var(--destructive))"
                 strokeDasharray="3 3"
                 strokeWidth={1.5}
              >
-                <RechartsPrimitive.Label 
+                <RechartsPrimitive.Label
                     value={`Avg: ${formatCurrency(totalAverageForPeriod, defaultCurrency, 'en-US').replace(defaultCurrency, '')}`}
-                    position="right" 
-                    fill="hsl(var(--destructive))" 
+                    position="right"
+                    fill="hsl(var(--destructive))"
                     fontSize={10}
                     dy={-5} // Adjust vertical position
                 />
@@ -237,4 +194,3 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
 // RechartsPrimitive.Label needs to be imported if not already globally available in Recharts
 // For explicit import, if `Label` is directly from `recharts`
 import * as RechartsPrimitive from 'recharts';
-
