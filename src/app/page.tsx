@@ -14,7 +14,7 @@ export default function HomePage() {
   return (
     <div className="flex flex-col min-h-screen bg-background mx-auto max-w-3/4">
       <AppHeader />
-      <main className="flex-grow container mx-auto px-4 py-6">
+      <main className="flex-grow px-4 py-6"> {/* Removed 'container' and 'mx-auto' */}
         <Tabs defaultValue="dashboard" className="w-full">
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 h-auto p-2 mb-6 rounded-lg bg-card shadow">
             <TabsTrigger value="dashboard" className="flex-col sm:flex-row h-auto py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
