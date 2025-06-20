@@ -1,18 +1,16 @@
 import type { Category } from './types';
 
 export const DEFAULT_CATEGORIES: Category[] = [
-  { id: 'food', name: 'Food', icon: 'UtensilsCrossed' },
-  { id: 'transport', name: 'Car' },
-  { id: 'utilities', name: 'Lightbulb' },
-  { id: 'entertainment', name: 'Gamepad2' },
-  { id: 'health', name: 'Stethoscope' },
-  { id: 'shopping', name: 'ShoppingBag' },
-  { id: 'subscriptions_cat', name: 'Subscriptions', icon: 'Repeat' }, // Category specific for grouping subscription payments
-  { id: 'housing', name: 'Home' },
-  { id: 'education', name: 'School'},
-  { id: 'personal_care', name: 'PersonStanding'}, // Or a more generic icon like 'Smile' if available
-  { id: 'gifts_donations', name: 'Gift'},
-  { id: 'other', name: 'HelpCircle' },
+  { id: 'restaurant', name: 'Restaurant', icon: 'UtensilsCrossed' },
+  { id: 'bar', name: 'Bar', icon: 'Martini' },
+  { id: 'transportation', name: 'Transportation', icon: 'Bus' },
+  { id: 'subscriptions', name: 'Subscriptions', icon: 'Repeat' },
+  { id: 'groceries', name: 'Groceries', icon: 'ShoppingCart' },
+  { id: 'food', name: 'Food', icon: 'Apple' },
+  { id: 'gift', name: 'Gift', icon: 'Gift' },
+  { id: 'home', name: 'Home', icon: 'Home' },
+  { id: 'car', name: 'Car', icon: 'Car' },
+  { id: 'tech', name: 'Tech', icon: 'Laptop' },
 ];
 
 export const LOCAL_STORAGE_KEYS = {
