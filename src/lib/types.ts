@@ -1,5 +1,4 @@
 
-
 import type { LucideIcon } from 'lucide-react';
 
 export const SUPPORTED_CURRENCIES = ['USD', 'EUR', 'JPY', 'CHF'] as const;
@@ -9,6 +8,7 @@ export interface Category {
   id: string;
   name: string;
   icon: string; // Lucide icon name
+  isDefault?: boolean; // Added to mark default categories
 }
 
 export interface Expense {
@@ -25,9 +25,9 @@ export interface Subscription {
   id: string;
   name: string;
   categoryId: string;
-  originalAmount: number; 
-  originalCurrency: CurrencyCode; 
-  amounts: Record<CurrencyCode, number>; 
+  originalAmount: number;
+  originalCurrency: CurrencyCode;
+  amounts: Record<CurrencyCode, number>;
   startDate: string; // ISO string
   endDate?: string; // Optional ISO string
   description?: string;
@@ -44,4 +44,3 @@ export interface ChartDataPoint {
   name: string; // Typically category name
   value: number; // The aggregated amount for that category in the default currency
 }
-

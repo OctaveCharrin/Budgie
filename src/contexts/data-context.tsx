@@ -28,9 +28,9 @@ interface DataContextProps {
   deleteSubscription: (id: string) => Promise<void>;
   categories: Category[];
   setCategories: (categories: Category[] | ((val: Category[]) => Category[])) => void;
-  addCategory: (category: Omit<Category, 'id'>) => Promise<void>;
+  addCategory: (category: Omit<Category, 'id' | 'isDefault'>) => Promise<void>;
   updateCategory: (category: Category) => Promise<void>;
-  deleteCategory: (id: string) => Promise<void>;
+  deleteCategory: (id: string) => Promise<boolean>; // Changed return type
   resetCategories: () => Promise<void>;
   getCategoryById: (id: string) => Category | undefined;
   settings: AppSettings;
@@ -118,15 +118,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       toast({ variant: "destructive", title: "Error", description: "Could not delete expense." });
     }
   };
-  
+
   const deleteAllExpensesContext = async () => {
     try {
       await deleteAllExpensesAction();
-      setExpenses([]); 
+      setExpenses([]);
     } catch (error) {
       console.error("Failed to delete all expenses:", error);
       toast({ variant: "destructive", title: "Error", description: "Could not delete all expenses." });
-      throw error; 
+      throw error;
     }
   };
 
@@ -159,10 +159,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       toast({ variant: "destructive", title: "Error", description: "Could not delete subscription." });
     }
   };
-  
-  const addCategoryContext = async (categoryData: Omit<Category, 'id'>) => {
+
+  const addCategoryContext = async (categoryData: Omit<Category, 'id' | 'isDefault'>) => {
     try {
-      const newCategory = await addCategoryAction({ ...categoryData, icon: "DollarSign" });
+      const newCategory = await addCategoryAction({ ...categoryData, icon: "DollarSign" }); // Server action sets isDefault: false
       setCategories(prev => [newCategory, ...prev]);
     } catch (error) {
       console.error("Failed to add category:", error);
@@ -180,17 +180,24 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const deleteCategoryContext = async (id: string): Promise<void> => {
+  const deleteCategoryContext = async (id: string): Promise<boolean> => {
     try {
-      const { success } = await deleteCategoryAction(id);
-      if (success) {
+      const result = await deleteCategoryAction(id);
+      if (result.success) {
         setCategories(prev => prev.filter(cat => cat.id !== id));
+        return true;
       } else {
-        toast({ variant: "destructive", title: "Deletion Failed", description: "Category could not be deleted. It might be in use." });
+        toast({
+          variant: "destructive",
+          title: "Deletion Failed",
+          description: result.message || "Category could not be deleted."
+        });
+        return false;
       }
     } catch (error) {
       console.error("Failed to delete category:", error);
-      toast({ variant: "destructive", title: "Error", description: "Could not delete category." });
+      toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred while trying to delete the category." });
+      return false;
     }
   };
 
@@ -201,10 +208,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Failed to reset categories:", error);
       toast({ variant: "destructive", title: "Error", description: "Could not reset categories." });
-      throw error; 
+      throw error;
     }
   };
-  
+
   const getCategoryByIdContext = (id: string) => categories.find(c => c.id === id);
 
   const getAmountInDefaultCurrencyContext = (item: Expense | Subscription): number => {
@@ -213,7 +220,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     if (item.amounts && typeof item.amounts[settings.defaultCurrency] === 'number') {
       return item.amounts[settings.defaultCurrency];
     }
-    
+
     if ('amount' in item && !item.amounts && !('originalAmount'in item) && typeof (item as any).amount === 'number') {
         return (item as any).amount;
     }
@@ -221,29 +228,29 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     if ('originalAmount' in item && item.originalCurrency === settings.defaultCurrency) {
         return item.originalAmount;
     }
-    
-    return 0; 
+
+    return 0;
   };
 
 
   return (
     <DataContext.Provider value={{
-      expenses, setExpenses, 
-      addExpense: addExpenseContext, 
-      updateExpense: updateExpenseContext, 
-      deleteExpense: deleteExpenseContext, 
+      expenses, setExpenses,
+      addExpense: addExpenseContext,
+      updateExpense: updateExpenseContext,
+      deleteExpense: deleteExpenseContext,
       deleteAllExpenses: deleteAllExpensesContext,
-      subscriptions, setSubscriptions, 
-      addSubscription: addSubscriptionContext, 
-      updateSubscription: updateSubscriptionContext, 
+      subscriptions, setSubscriptions,
+      addSubscription: addSubscriptionContext,
+      updateSubscription: updateSubscriptionContext,
       deleteSubscription: deleteSubscriptionContext,
-      categories, setCategories, 
-      addCategory: addCategoryContext, 
-      updateCategory: updateCategoryContext, 
-      deleteCategory: deleteCategoryContext, 
+      categories, setCategories,
+      addCategory: addCategoryContext,
+      updateCategory: updateCategoryContext,
+      deleteCategory: deleteCategoryContext,
       resetCategories: resetCategoriesContext,
       getCategoryById: getCategoryByIdContext,
-      settings, 
+      settings,
       updateSettings: updateSettingsContext,
       isLoading,
       getAmountInDefaultCurrency: getAmountInDefaultCurrencyContext,

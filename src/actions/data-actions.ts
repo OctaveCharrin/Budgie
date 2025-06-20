@@ -24,12 +24,13 @@ export async function getCategoriesAction(): Promise<Category[]> {
   return readData<Category[]>(DATA_FILE_PATHS.categories, DEFAULT_CATEGORIES);
 }
 
-export async function addCategoryAction(categoryData: Omit<Category, 'id'>): Promise<Category> {
+export async function addCategoryAction(categoryData: Omit<Category, 'id' | 'isDefault'>): Promise<Category> {
   const categories = await getCategoriesAction();
   const newCategory: Category = {
     id: generateId(),
     name: categoryData.name,
-    icon: categoryData.icon, 
+    icon: categoryData.icon,
+    isDefault: false, // New categories are not default
   };
   categories.push(newCategory);
   await writeData(DATA_FILE_PATHS.categories, categories);
@@ -38,19 +39,37 @@ export async function addCategoryAction(categoryData: Omit<Category, 'id'>): Pro
 
 export async function updateCategoryAction(updatedCategory: Category): Promise<Category> {
   let categories = await getCategoriesAction();
+  // isDefault status is preserved as it's part of the updatedCategory object passed from the form logic
   categories = categories.map(cat => cat.id === updatedCategory.id ? updatedCategory : cat);
   await writeData(DATA_FILE_PATHS.categories, categories);
   return updatedCategory;
 }
 
-export async function deleteCategoryAction(id: string): Promise<{ success: boolean }> {
+export async function deleteCategoryAction(id: string): Promise<{ success: boolean; message?: string }> {
   let categories = await getCategoriesAction();
+  const categoryToDelete = categories.find(cat => cat.id === id);
+
+  if (categoryToDelete?.isDefault) {
+    return { success: false, message: "Default categories cannot be deleted." };
+  }
+  
+  // Check if category is in use (this check remains, but isDefault takes precedence)
+  const expenses = await getExpensesAction();
+  const subscriptions = await getSubscriptionsAction();
+  const isCategoryInUseByExpenses = expenses.some(exp => exp.categoryId === id);
+  const isCategoryInUseBySubscriptions = subscriptions.some(sub => sub.categoryId === id);
+
+  if (isCategoryInUseByExpenses || isCategoryInUseBySubscriptions) {
+      return { success: false, message: `Category "${categoryToDelete?.name || id}" is currently in use and cannot be deleted.` };
+  }
+
   categories = categories.filter(cat => cat.id !== id);
   await writeData(DATA_FILE_PATHS.categories, categories);
-  return { success: true }; 
+  return { success: true };
 }
 
 export async function resetCategoriesAction(): Promise<Category[]> {
+  // DEFAULT_CATEGORIES now include isDefault: true
   await writeData(DATA_FILE_PATHS.categories, DEFAULT_CATEGORIES);
   return DEFAULT_CATEGORIES;
 }
@@ -64,8 +83,8 @@ export async function getExpensesAction(): Promise<Expense[]> {
       const oldAmount = (exp as any).amount;
       const oldCurrency = (exp as any).currency || 'USD'; // Assume USD if currency missing
       const amounts = {} as Record<CurrencyCode, number>;
-      SUPPORTED_CURRENCIES.forEach(c => amounts[c] = (c === oldCurrency ? oldAmount : 0)); 
-      
+      SUPPORTED_CURRENCIES.forEach(c => amounts[c] = (c === oldCurrency ? oldAmount : 0));
+
       return {
         ...exp,
         originalAmount: oldAmount,
@@ -73,7 +92,7 @@ export async function getExpensesAction(): Promise<Expense[]> {
         amounts: amounts,
       } as Expense;
     }
-    if (!exp.amounts && exp.originalAmount && exp.originalCurrency) { 
+    if (!exp.amounts && exp.originalAmount && exp.originalCurrency) {
         // This state implies it was saved before amounts field was populated correctly or conversion failed.
     }
     return exp;
@@ -85,7 +104,7 @@ export async function addExpenseAction(
 ): Promise<Expense> {
   const expenses = await getExpensesAction();
   const amounts = await convertAmountToAllCurrencies(expenseData.originalAmount, expenseData.originalCurrency);
-  
+
   const newExpense: Expense = {
     id: generateId(),
     date: expenseData.date,
@@ -112,14 +131,14 @@ export async function updateExpenseAction(updatedExpenseData: Expense): Promise<
   if (
     existingExpense.originalAmount !== updatedExpenseData.originalAmount ||
     existingExpense.originalCurrency !== updatedExpenseData.originalCurrency ||
-    !existingExpense.amounts 
+    !existingExpense.amounts
   ) {
     amounts = await convertAmountToAllCurrencies(updatedExpenseData.originalAmount, updatedExpenseData.originalCurrency);
   }
 
   const fullyUpdatedExpense: Expense = {
     ...updatedExpenseData,
-    amounts, 
+    amounts,
   };
 
   expenses = expenses.map(exp => exp.id === fullyUpdatedExpense.id ? fullyUpdatedExpense : exp);
@@ -142,13 +161,13 @@ export async function deleteAllExpensesAction(): Promise<{ success: boolean }> {
 // Subscription Actions
 export async function getSubscriptionsAction(): Promise<Subscription[]> {
   const subscriptions = await readData<Subscription[]>(DATA_FILE_PATHS.subscriptions, []);
-  const appSettings = await getSettingsAction(); 
+  const appSettings = await getSettingsAction();
 
   const migratedSubscriptions = await Promise.all(
     subscriptions.map(async (sub) => {
       if (typeof (sub as any).amount === 'number' && !sub.originalCurrency && !sub.amounts) {
         const originalAmount = (sub as any).amount;
-        const originalCurrency = appSettings.defaultCurrency; 
+        const originalCurrency = appSettings.defaultCurrency;
         try {
           const amounts = await convertAmountToAllCurrencies(originalAmount, originalCurrency);
           return {
@@ -163,7 +182,7 @@ export async function getSubscriptionsAction(): Promise<Subscription[]> {
             ...sub,
             originalAmount,
             originalCurrency,
-            amounts: { [originalCurrency]: originalAmount } as Record<CurrencyCode, number>, 
+            amounts: { [originalCurrency]: originalAmount } as Record<CurrencyCode, number>,
           } as Subscription;
         }
       }
@@ -176,7 +195,7 @@ export async function getSubscriptionsAction(): Promise<Subscription[]> {
             return { ...sub, amounts: { [sub.originalCurrency]: sub.originalAmount } as Record<CurrencyCode, number> };
         }
       }
-      return sub; 
+      return sub;
     })
   );
   return migratedSubscriptions;
@@ -187,7 +206,7 @@ export async function addSubscriptionAction(
 ): Promise<Subscription> {
   const subscriptions = await getSubscriptionsAction();
   const amounts = await convertAmountToAllCurrencies(subscriptionData.originalAmount, subscriptionData.originalCurrency);
-  
+
   const newSubscription: Subscription = {
     id: generateId(),
     name: subscriptionData.name,
@@ -214,7 +233,7 @@ export async function updateSubscriptionAction(updatedSubscriptionData: Subscrip
 
   let amounts = existingSubscription.amounts;
   if (
-    !existingSubscription.amounts || 
+    !existingSubscription.amounts ||
     existingSubscription.originalAmount !== updatedSubscriptionData.originalAmount ||
     existingSubscription.originalCurrency !== updatedSubscriptionData.originalCurrency
   ) {

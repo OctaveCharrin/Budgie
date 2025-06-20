@@ -1,5 +1,19 @@
 [
   {
+    "id": "dd26ac30-f007-4646-996e-8eec21c0d9f8",
+    "date": "2025-06-20T05:16:10.476Z",
+    "categoryId": "bar",
+    "originalAmount": 10,
+    "originalCurrency": "EUR",
+    "amounts": {
+      "USD": 11.493,
+      "EUR": 10,
+      "JPY": 1670.6399999999999,
+      "CHF": 9.393
+    },
+    "description": ""
+  },
+  {
     "id": "04838423-9727-45ee-b7ea-685fd2320d81",
     "date": "2025-06-20T04:42:32.025Z",
     "categoryId": "bar",
