@@ -29,7 +29,7 @@ export async function addCategoryAction(categoryData: Omit<Category, 'id'>): Pro
   const newCategory: Category = {
     id: generateId(),
     name: categoryData.name,
-    icon: categoryData.icon, // Icon is now passed from the form
+    icon: categoryData.icon, 
   };
   categories.push(newCategory);
   await writeData(DATA_FILE_PATHS.categories, categories);
@@ -52,8 +52,6 @@ export async function deleteCategoryAction(id: string): Promise<{ success: boole
 
 export async function resetCategoriesAction(): Promise<Category[]> {
   await writeData(DATA_FILE_PATHS.categories, DEFAULT_CATEGORIES);
-  // Ensure expenses are re-evaluated if their categories are gone
-  // This is mostly handled by the UI checking getCategoryById
   return DEFAULT_CATEGORIES;
 }
 
@@ -62,13 +60,11 @@ export async function getExpensesAction(): Promise<Expense[]> {
   const expenses = await readData<Expense[]>(DATA_FILE_PATHS.expenses, []);
   // Basic backward compatibility: if old expense format, try to convert
   return expenses.map(exp => {
-    if (!(exp as any).amounts && (exp as any).amount) {
-      // This is a very basic placeholder. Real migration would be complex.
-      // For now, we'll assume old amounts were USD if no currency specified.
+    if (!(exp as any).amounts && (exp as any).amount) { // Very old format detection
       const oldAmount = (exp as any).amount;
-      const oldCurrency = (exp as any).currency || 'USD';
+      const oldCurrency = (exp as any).currency || 'USD'; // Assume USD if currency missing
       const amounts = {} as Record<CurrencyCode, number>;
-      SUPPORTED_CURRENCIES.forEach(c => amounts[c] = (c === oldCurrency ? oldAmount : 0)); // Simplified
+      SUPPORTED_CURRENCIES.forEach(c => amounts[c] = (c === oldCurrency ? oldAmount : 0)); 
       
       return {
         ...exp,
@@ -76,6 +72,12 @@ export async function getExpensesAction(): Promise<Expense[]> {
         originalCurrency: oldCurrency as CurrencyCode,
         amounts: amounts,
       } as Expense;
+    }
+    if (!exp.amounts && exp.originalAmount && exp.originalCurrency) { // If amounts is missing but new fields exist
+        // This state implies it was saved before amounts field was populated correctly or conversion failed.
+        // For now, we'll rely on the caller (e.g. context) to handle display or re-attempt conversion.
+        // Ideally, we'd trigger a re-conversion here if possible and save it.
+        // For now, return as is, context will handle it.
     }
     return exp;
   });
@@ -110,17 +112,17 @@ export async function updateExpenseAction(updatedExpenseData: Expense): Promise<
   }
 
   let amounts = existingExpense.amounts;
-  // If original amount or currency changed, recalculate all currency values
   if (
     existingExpense.originalAmount !== updatedExpenseData.originalAmount ||
-    existingExpense.originalCurrency !== updatedExpenseData.originalCurrency
+    existingExpense.originalCurrency !== updatedExpenseData.originalCurrency ||
+    !existingExpense.amounts // If amounts was somehow missing
   ) {
     amounts = await convertAmountToAllCurrencies(updatedExpenseData.originalAmount, updatedExpenseData.originalCurrency);
   }
 
   const fullyUpdatedExpense: Expense = {
     ...updatedExpenseData,
-    amounts, // Use potentially recalculated amounts
+    amounts, 
   };
 
   expenses = expenses.map(exp => exp.id === fullyUpdatedExpense.id ? fullyUpdatedExpense : exp);
@@ -142,25 +144,101 @@ export async function deleteAllExpensesAction(): Promise<{ success: boolean }> {
 
 // Subscription Actions
 export async function getSubscriptionsAction(): Promise<Subscription[]> {
-  return readData<Subscription[]>(DATA_FILE_PATHS.subscriptions, []);
+  const subscriptions = await readData<Subscription[]>(DATA_FILE_PATHS.subscriptions, []);
+  const appSettings = await getSettingsAction(); // Needed for default currency assumption for old data
+
+  // Attempt to "soft" migrate old subscriptions if they don't have the new currency fields
+  const migratedSubscriptions = await Promise.all(
+    subscriptions.map(async (sub) => {
+      if (typeof (sub as any).amount === 'number' && !sub.originalCurrency && !sub.amounts) {
+        // This is an old subscription format
+        const originalAmount = (sub as any).amount;
+        // Assume old subscriptions were in the app's default currency AT THE TIME OF SAVING.
+        // For simplicity, we'll use the *current* default currency.
+        // This is an assumption and might not be accurate for very old data if default currency changed.
+        const originalCurrency = appSettings.defaultCurrency; 
+        try {
+          const amounts = await convertAmountToAllCurrencies(originalAmount, originalCurrency);
+          return {
+            ...sub,
+            originalAmount,
+            originalCurrency,
+            amounts,
+          } as Subscription;
+        } catch (error) {
+          console.warn(`Failed to auto-migrate subscription ${sub.id} to multi-currency:`, error);
+          // Return with minimal structure, UI will have to handle it
+           return {
+            ...sub,
+            originalAmount,
+            originalCurrency,
+            amounts: { [originalCurrency]: originalAmount } as Record<CurrencyCode, number>, // Basic fallback
+          } as Subscription;
+        }
+      }
+      // If it has originalCurrency but not amounts (e.g. failed conversion before)
+      if (sub.originalCurrency && !sub.amounts) {
+        try {
+            const amounts = await convertAmountToAllCurrencies(sub.originalAmount, sub.originalCurrency);
+            return {...sub, amounts };
+        } catch (error) {
+            console.warn(`Failed to populate amounts for subscription ${sub.id}:`, error);
+            return { ...sub, amounts: { [sub.originalCurrency]: sub.originalAmount } as Record<CurrencyCode, number> };
+        }
+      }
+      return sub; // Already in new format or couldn't migrate
+    })
+  );
+  return migratedSubscriptions;
 }
 
-export async function addSubscriptionAction(subscriptionData: Omit<Subscription, 'id'>): Promise<Subscription> {
+export async function addSubscriptionAction(
+  subscriptionData: Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode }
+): Promise<Subscription> {
   const subscriptions = await getSubscriptionsAction();
+  const amounts = await convertAmountToAllCurrencies(subscriptionData.originalAmount, subscriptionData.originalCurrency);
+  
   const newSubscription: Subscription = {
-    ...subscriptionData,
     id: generateId(),
+    name: subscriptionData.name,
+    categoryId: subscriptionData.categoryId,
+    originalAmount: subscriptionData.originalAmount,
+    originalCurrency: subscriptionData.originalCurrency,
+    amounts,
+    startDate: subscriptionData.startDate,
+    description: subscriptionData.description,
   };
   subscriptions.unshift(newSubscription);
   await writeData(DATA_FILE_PATHS.subscriptions, subscriptions);
   return newSubscription;
 }
 
-export async function updateSubscriptionAction(updatedSubscription: Subscription): Promise<Subscription> {
+export async function updateSubscriptionAction(updatedSubscriptionData: Subscription): Promise<Subscription> {
   let subscriptions = await getSubscriptionsAction();
-  subscriptions = subscriptions.map(sub => sub.id === updatedSubscription.id ? updatedSubscription : sub);
+  const existingSubscription = subscriptions.find(sub => sub.id === updatedSubscriptionData.id);
+
+  if (!existingSubscription) {
+    throw new Error("Subscription not found for update.");
+  }
+
+  let amounts = existingSubscription.amounts;
+  // If original amount or currency changed, or amounts are missing, recalculate all currency values
+  if (
+    !existingSubscription.amounts || // Ensure amounts exist
+    existingSubscription.originalAmount !== updatedSubscriptionData.originalAmount ||
+    existingSubscription.originalCurrency !== updatedSubscriptionData.originalCurrency
+  ) {
+    amounts = await convertAmountToAllCurrencies(updatedSubscriptionData.originalAmount, updatedSubscriptionData.originalCurrency);
+  }
+
+  const fullyUpdatedSubscription: Subscription = {
+    ...updatedSubscriptionData,
+    amounts,
+  };
+
+  subscriptions = subscriptions.map(sub => sub.id === fullyUpdatedSubscription.id ? fullyUpdatedSubscription : sub);
   await writeData(DATA_FILE_PATHS.subscriptions, subscriptions);
-  return updatedSubscription;
+  return fullyUpdatedSubscription;
 }
 
 export async function deleteSubscriptionAction(id: string): Promise<{ success: boolean }> {

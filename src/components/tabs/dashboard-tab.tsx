@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ExpenseListItem } from "@/components/list-items/expense-list-item";
 import type { Expense } from "@/lib/types";
-import { format as formatDateFns, startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO, addYears } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO, addYears } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
 
@@ -20,10 +20,10 @@ export function DashboardTab() {
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | undefined>(undefined);
 
-  const [currentMonthTotal, setCurrentMonthTotal] = useState(0);
-  const [lastMonthTotal, setLastMonthTotal] = useState(0);
+  const [currentMonthTotalExpenses, setCurrentMonthTotalExpenses] = useState(0);
+  const [lastMonthTotalExpenses, setLastMonthTotalExpenses] = useState(0);
   const [percentageChange, setPercentageChange] = useState(0);
-  const [totalSubscriptionsAmount, setTotalSubscriptionsAmount] = useState(0);
+  const [totalMonthlySubscriptionsCost, setTotalMonthlySubscriptionsCost] = useState(0);
 
   useEffect(() => {
     if (isLoading || !settings.defaultCurrency) return;
@@ -34,42 +34,39 @@ export function DashboardTab() {
     const lastMonthStart = startOfMonth(subMonths(now, 1));
     const lastMonthEnd = endOfMonth(subMonths(now, 1));
 
-    const calculateTotalForPeriod = (start: Date, end: Date) => {
-      let total = 0;
-      expenses.forEach(exp => {
+    const calculateTotalExpensesForPeriod = (start: Date, end: Date): number => {
+      return expenses.reduce((total, exp) => {
         if (isWithinInterval(parseISO(exp.date), { start, end })) {
-          total += getAmountInDefaultCurrency(exp);
+          return total + getAmountInDefaultCurrency(exp);
         }
-      });
-      // Assuming subscriptions are monthly and their 'amount' is in default currency or needs conversion
-      subscriptions.forEach(sub => {
-         // A more robust check would be if the subscription is active during any part of the 'start' to 'end' period.
-         // For simplicity, if it started before the period ends and is within the current month context.
-        const subStartDate = parseISO(sub.startDate);
-         if (subStartDate <= end && isWithinInterval(start, { start: subStartDate, end: addYears(subStartDate, 100) })) {
-            total += sub.amount; // Assuming sub.amount is already in/convertible to default currency
-        }
-      });
-      return total;
+        return total;
+      }, 0);
     };
     
-    const currentTotal = calculateTotalForPeriod(currentMonthStart, currentMonthEnd);
-    const previousTotal = calculateTotalForPeriod(lastMonthStart, lastMonthEnd);
+    const currentTotalExp = calculateTotalExpensesForPeriod(currentMonthStart, currentMonthEnd);
+    const previousTotalExp = calculateTotalExpensesForPeriod(lastMonthStart, lastMonthEnd);
 
-    setCurrentMonthTotal(currentTotal);
-    setLastMonthTotal(previousTotal);
+    setCurrentMonthTotalExpenses(currentTotalExp);
+    setLastMonthTotalExpenses(previousTotalExp);
 
-    if (previousTotal > 0) {
-      setPercentageChange(((currentTotal - previousTotal) / previousTotal) * 100);
-    } else if (currentTotal > 0) {
-      setPercentageChange(100); // Went from 0 to something
+    if (previousTotalExp > 0) {
+      setPercentageChange(((currentTotalExp - previousTotalExp) / previousTotalExp) * 100);
+    } else if (currentTotalExp > 0) {
+      setPercentageChange(100); 
     } else {
-      setPercentageChange(0); // Both 0 or current is 0 and previous was 0
+      setPercentageChange(0); 
     }
 
-    // Calculate total subscriptions amount
-    const subsTotal = subscriptions.reduce((acc, sub) => acc + sub.amount, 0);
-    setTotalSubscriptionsAmount(subsTotal);
+    // Calculate total monthly cost of active subscriptions
+    const activeSubsTotal = subscriptions.reduce((acc, sub) => {
+        // Basic check: is subscription start date before or within current month's end?
+        // More complex logic would be needed for pro-rating or exact active days.
+        if (parseISO(sub.startDate) <= currentMonthEnd) {
+            return acc + getAmountInDefaultCurrency(sub);
+        }
+        return acc;
+    }, 0);
+    setTotalMonthlySubscriptionsCost(activeSubsTotal);
 
   }, [expenses, subscriptions, isLoading, settings, getAmountInDefaultCurrency]);
 
@@ -87,6 +84,9 @@ export function DashboardTab() {
     setIsAddExpenseOpen(false);
     setEditingExpense(undefined);
   };
+  
+  const totalSpentThisMonth = currentMonthTotalExpenses + totalMonthlySubscriptionsCost;
+
 
   if (isLoading) {
     return (
@@ -137,28 +137,29 @@ export function DashboardTab() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-                {formatCurrency(currentMonthTotal, settings.defaultCurrency)}
+                {formatCurrency(totalSpentThisMonth, settings.defaultCurrency)}
             </div>
             <p className="text-xs text-muted-foreground">
+              {/* Percentage change compares only expenses, not total with subscriptions for simplicity here */}
               {percentageChange !== 0 && (
                 <>
-                  {percentageChange > 0 ? '+' : ''}{percentageChange.toFixed(1)}% 
-                  from last month ({formatCurrency(lastMonthTotal, settings.defaultCurrency)})
+                  {percentageChange > 0 ? '+' : ''}{percentageChange.toFixed(1)}% (expenses)
+                  from last month ({formatCurrency(lastMonthTotalExpenses, settings.defaultCurrency)})
                 </>
               )}
-              {percentageChange === 0 && lastMonthTotal > 0 && "No change from last month"}
-              {percentageChange === 0 && lastMonthTotal === 0 && currentMonthTotal === 0 && "No spending recorded yet"}
+              {percentageChange === 0 && lastMonthTotalExpenses > 0 && "No change in expenses from last month"}
+              {percentageChange === 0 && lastMonthTotalExpenses === 0 && totalSpentThisMonth === 0 && "No spending recorded yet"}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Subscriptions</CardTitle>
+            <CardTitle className="text-sm font-medium">Monthly Subscriptions Cost</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-                {formatCurrency(totalSubscriptionsAmount, settings.defaultCurrency)} / month
+                {formatCurrency(totalMonthlySubscriptionsCost, settings.defaultCurrency)}
             </div>
             <p className="text-xs text-muted-foreground">{subscriptions.length} active subscriptions</p>
           </CardContent>

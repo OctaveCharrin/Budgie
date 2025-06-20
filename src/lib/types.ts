@@ -1,3 +1,4 @@
+
 import type { LucideIcon } from 'lucide-react';
 
 export const SUPPORTED_CURRENCIES = ['USD', 'EUR', 'JPY', 'CHF'] as const;
@@ -23,7 +24,9 @@ export interface Subscription {
   id: string;
   name: string;
   categoryId: string;
-  amount: number; // Assumed to be in the default display currency
+  originalAmount: number; // Renamed from amount
+  originalCurrency: CurrencyCode; // New field
+  amounts: Record<CurrencyCode, number>; // New field, stores amount in all supported currencies
   startDate: string; // ISO string
   description?: string;
 }

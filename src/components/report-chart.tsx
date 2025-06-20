@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ChartConfig } from "@/components/ui/chart"; 
 import { useData } from "@/contexts/data-context";
 import type { ReportPeriod, ChartDataPoint, CurrencyCode, Category } from "@/lib/types";
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, eachMonthOfInterval, isWithinInterval, parseISO, addYears } from "date-fns";
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, eachDayOfInterval, eachMonthOfInterval, isWithinInterval, parseISO, addYears, differenceInMonths, getDaysInMonth } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
 
@@ -21,87 +21,97 @@ export function ReportChart({ period, date }: ReportChartProps) {
   const defaultCurrency = settings.defaultCurrency;
 
   const chartConfig = {
-    valueInDefaultCurrency: { // Renamed from 'total'
-      label: `Total Expenses (${defaultCurrency})`,
+    valueInDefaultCurrency: { 
+      label: `Total Spending (${defaultCurrency})`,
       color: "hsl(var(--chart-1))",
     },
   } satisfies ChartConfig;
 
 
   const calculateReportData = (): ChartDataPoint[] => {
-    if (isLoading || !defaultCurrency) return [];
+    if (isLoading || !defaultCurrency || !categories) return [];
 
-    let startDate: Date, endDate: Date;
+    let periodStart: Date, periodEnd: Date;
 
     switch (period) {
       case 'weekly':
-        startDate = startOfWeek(date, { weekStartsOn: 1 });
-        endDate = endOfWeek(date, { weekStartsOn: 1 });
+        periodStart = startOfWeek(date, { weekStartsOn: 1 });
+        periodEnd = endOfWeek(date, { weekStartsOn: 1 });
         break;
       case 'monthly':
-        startDate = startOfMonth(date);
-        endDate = endOfMonth(date);
+        periodStart = startOfMonth(date);
+        periodEnd = endOfMonth(date);
         break;
       case 'yearly':
-        startDate = startOfYear(date);
-        endDate = endOfYear(date);
+        periodStart = startOfYear(date);
+        periodEnd = endOfYear(date);
         break;
     }
 
-    const relevantExpenses = expenses.filter(expense => 
-      isWithinInterval(parseISO(expense.date), { start: startDate, end: endDate })
-    );
-
-    const relevantSubscriptions = subscriptions.filter(sub => {
-      const subStartDate = parseISO(sub.startDate);
-      // Consider active if start date is before or on period end, and end date (if exists) is after or on period start
-      // For simplicity, assuming subscriptions are ongoing if started.
-      return subStartDate <= endDate; 
-    });
-    
-    // Calculate subscription contributions for the period
-    let totalSubscriptionAmountForPeriod = 0;
-    if (period === 'monthly') {
-        relevantSubscriptions.forEach(sub => {
-            if (isWithinInterval(startOfMonth(date), {start: parseISO(sub.startDate), end: endOfMonth(addYears(parseISO(sub.startDate), 100))} ) ) {
-                 totalSubscriptionAmountForPeriod += sub.amount; // Assumed to be in default currency
-            }
-        });
-    } else if (period === 'yearly') {
-        const monthsInYear = eachMonthOfInterval({ start: startDate, end: endDate });
-        monthsInYear.forEach(monthStart => {
-            relevantSubscriptions.forEach(sub => {
-                 if (isWithinInterval(monthStart, {start: parseISO(sub.startDate), end: endOfMonth(addYears(parseISO(sub.startDate), 100))} ) ) {
-                    totalSubscriptionAmountForPeriod += sub.amount; // Assumed to be in default currency
-                }
-            });
-        });
-    } else { // weekly
-        relevantSubscriptions.forEach(sub => {
-             // Pro-rate monthly subscription for a week
-             if (isWithinInterval(startOfMonth(date), {start: parseISO(sub.startDate), end: endOfMonth(addYears(parseISO(sub.startDate), 100))} ) ) {
-                totalSubscriptionAmountForPeriod += sub.amount / 4.33; // Approx weeks in month
-            }
-        });
-    }
-    
     const aggregatedData: { [categoryId: string]: number } = {};
 
-    relevantExpenses.forEach(item => {
-      const amountInDefault = getAmountInDefaultCurrency(item);
-      aggregatedData[item.categoryId] = (aggregatedData[item.categoryId] || 0) + amountInDefault;
+    // Aggregate expenses
+    expenses.forEach(expense => {
+      if (isWithinInterval(parseISO(expense.date), { start: periodStart, end: periodEnd })) {
+        const amountInDefault = getAmountInDefaultCurrency(expense);
+        aggregatedData[expense.categoryId] = (aggregatedData[expense.categoryId] || 0) + amountInDefault;
+      }
     });
+    
+    // Aggregate subscriptions
+    const subscriptionsCategoryId = categories.find(c => c.name.toLowerCase() === 'subscriptions')?.id || 'subscriptions_placeholder_id';
+    
+    subscriptions.forEach(sub => {
+      const subStartDate = parseISO(sub.startDate);
+      let subContribution = 0;
+      const amountInDefault = getAmountInDefaultCurrency(sub);
 
-    // Add total subscription cost to a "Subscriptions" category or distribute if categorized
-    // For simplicity, let's add it to a generic subscriptions category if one exists, or as "Uncategorized"
-    const subscriptionsCategoryId = categories.find(c => c.name.toLowerCase() === 'subscriptions')?.id || 'subscriptions_placeholder';
-    if (totalSubscriptionAmountForPeriod > 0) {
-        aggregatedData[subscriptionsCategoryId] = (aggregatedData[subscriptionsCategoryId] || 0) + totalSubscriptionAmountForPeriod;
-    }
+      if (subStartDate > periodEnd) return; // Subscription hasn't started yet
+
+      if (period === 'monthly') {
+        // If subscription is active for any part of the month
+        if (subStartDate <= periodEnd && isWithinInterval(periodStart, {start: subStartDate, end: addYears(subStartDate, 100)})) {
+            subContribution = amountInDefault;
+        }
+      } else if (period === 'yearly') {
+        // Calculate how many full or partial months the subscription is active within the year
+        const yearMonths = eachMonthOfInterval({ start: periodStart, end: periodEnd });
+        yearMonths.forEach(monthInYearStart => {
+          const monthInYearEnd = endOfMonth(monthInYearStart);
+          if (subStartDate <= monthInYearEnd && isWithinInterval(monthInYearStart, {start: subStartDate, end: addYears(subStartDate, 100)})) {
+             subContribution += amountInDefault;
+          }
+        });
+      } else { // weekly
+        // Pro-rate monthly subscription for a week
+        // This is an approximation. A daily rate would be more accurate.
+        // Assuming sub amount is monthly. If subscription starts mid-week or ends mid-week, this gets complex.
+        // For simplicity: if active in the month of this week, add weekly portion.
+        const monthOfPeriodStart = startOfMonth(periodStart);
+        const monthOfPeriodEnd = endOfMonth(periodStart); // week is within one month
+         if (subStartDate <= periodEnd && isWithinInterval(monthOfPeriodStart, {start: subStartDate, end: addYears(subStartDate, 100)}) ) {
+            const daysInMonth = getDaysInMonth(monthOfPeriodStart);
+            const weeklyRate = (amountInDefault / daysInMonth) * 7; // approximate weekly rate
+            
+            // More precise: count overlapping days
+            const weekDays = eachDayOfInterval({start: periodStart, end: periodEnd});
+            let activeDaysInWeek = 0;
+            weekDays.forEach(day => {
+                if(day >= subStartDate) activeDaysInWeek++;
+            })
+            subContribution = (amountInDefault / daysInMonth) * activeDaysInWeek;
+        }
+      }
+      
+      if (subContribution > 0) {
+         const categoryIdToUse = sub.categoryId || subscriptionsCategoryId; // Use sub's category or default
+         aggregatedData[categoryIdToUse] = (aggregatedData[categoryIdToUse] || 0) + subContribution;
+      }
+    });
     
     return Object.entries(aggregatedData).map(([categoryId, total]) => ({
-      name: getCategoryById(categoryId)?.name || (categoryId === 'subscriptions_placeholder' ? 'Subscriptions' : "Uncategorized"),
-      valueInDefaultCurrency: total, // Key matches chartConfig
+      name: getCategoryById(categoryId)?.name || (categoryId === subscriptionsCategoryId ? 'Subscriptions' : "Uncategorized"),
+      valueInDefaultCurrency: total,
     })).sort((a,b) => b.valueInDefaultCurrency - a.valueInDefaultCurrency);
   };
 
@@ -170,8 +180,10 @@ export function ReportChart({ period, date }: ReportChartProps) {
                 cursor={{ fill: 'hsl(var(--muted))' }}
                 contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)'}}
                 labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 'bold' }}
-                formatter={(value: number, name: string) => {
-                    const label = chartConfig[name as keyof typeof chartConfig]?.label || name;
+                formatter={(value: number, name: string, props) => {
+                    // The key for 'valueInDefaultCurrency' is what recharts uses internally from Bar dataKey
+                    const configKey = props.dataKey as keyof typeof chartConfig; 
+                    const label = chartConfig[configKey]?.label || name;
                     return [formatCurrency(value, defaultCurrency), label];
                 }}
               />
@@ -184,4 +196,3 @@ export function ReportChart({ period, date }: ReportChartProps) {
     </Card>
   );
 }
-

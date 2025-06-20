@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { Expense, Subscription, Category, AppSettings, CurrencyCode } from '@/lib/types';
-import { DEFAULT_CATEGORIES, DEFAULT_SETTINGS, SUPPORTED_CURRENCIES } from '@/lib/constants';
+import { DEFAULT_CATEGORIES, DEFAULT_SETTINGS } from '@/lib/constants';
 import {
   getCategoriesAction, addCategoryAction, updateCategoryAction, deleteCategoryAction, resetCategoriesAction,
   getExpensesAction, addExpenseAction, updateExpenseAction, deleteExpenseAction, deleteAllExpensesAction,
@@ -23,7 +23,7 @@ interface DataContextProps {
   deleteAllExpenses: () => Promise<void>;
   subscriptions: Subscription[];
   setSubscriptions: (subscriptions: Subscription[] | ((val: Subscription[]) => Subscription[])) => void;
-  addSubscription: (subscription: Omit<Subscription, 'id'>) => Promise<void>;
+  addSubscription: (subscriptionData: Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode; name: string; categoryId: string; startDate: string; description?: string; }) => Promise<void>;
   updateSubscription: (subscription: Subscription) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   categories: Category[];
@@ -64,8 +64,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       setSettings(fetchedSettings || DEFAULT_SETTINGS);
     } catch (error) {
       console.error("Failed to load data:", error);
-      toast({ variant: "destructive", title: "Error Loading Data", description: "Could not load data from the server." });
-      // Initialize with defaults on error
+      toast({ variant: "destructive", title: "Error Loading Data", description: "Could not load data from the server. Exchange rates might be an issue." });
       setCategories(DEFAULT_CATEGORIES);
       setExpenses([]);
       setSubscriptions([]);
@@ -79,19 +78,19 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     loadData();
   }, [loadData]);
 
-  const updateSettings = async (newSettings: Partial<AppSettings>) => {
+  const updateSettingsContext = async (newSettings: Partial<AppSettings>) => {
     try {
       const updatedSettingsData = { ...settings, ...newSettings };
       const result = await updateSettingsAction(updatedSettingsData);
       setSettings(result);
-      toast({ title: "Settings Updated", description: "Your settings have been saved." });
+      // No toast here, it's often done in the settings tab itself
     } catch (error) {
       console.error("Failed to update settings:", error);
       toast({ variant: "destructive", title: "Error", description: "Could not update settings." });
     }
   };
 
-  const addExpense = async (expenseData: Omit<Expense, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode }) => {
+  const addExpenseContext = async (expenseData: Omit<Expense, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode }) => {
     try {
       const newExpense = await addExpenseAction(expenseData);
       setExpenses(prev => [newExpense, ...prev]);
@@ -101,7 +100,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateExpense = async (updatedExpenseData: Expense) => {
+  const updateExpenseContext = async (updatedExpenseData: Expense) => {
     try {
       const updatedExpense = await updateExpenseAction(updatedExpenseData);
       setExpenses(prev => prev.map(exp => exp.id === updatedExpense.id ? updatedExpense : exp));
@@ -111,7 +110,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const deleteExpense = async (id: string) => {
+  const deleteExpenseContext = async (id: string) => {
     try {
       await deleteExpenseAction(id);
       setExpenses(prev => prev.filter(exp => exp.id !== id));
@@ -121,7 +120,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   
-  const deleteAllExpenses = async () => {
+  const deleteAllExpensesContext = async () => {
     try {
       await deleteAllExpensesAction();
       setExpenses([]); 
@@ -132,27 +131,27 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addSubscription = async (subscriptionData: Omit<Subscription, 'id'>) => {
+  const addSubscriptionContext = async (subscriptionData: Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode; name: string; categoryId: string; startDate: string; description?: string; }) => {
     try {
       const newSubscription = await addSubscriptionAction(subscriptionData);
       setSubscriptions(prev => [newSubscription, ...prev]);
     } catch (error) {
       console.error("Failed to add subscription:", error);
-      toast({ variant: "destructive", title: "Error", description: "Could not add subscription." });
+      toast({ variant: "destructive", title: "Error", description: "Could not add subscription. Check API key or network." });
     }
   };
 
-  const updateSubscription = async (updatedSubscriptionData: Subscription) => {
+  const updateSubscriptionContext = async (updatedSubscriptionData: Subscription) => {
     try {
       const updatedSubscription = await updateSubscriptionAction(updatedSubscriptionData);
       setSubscriptions(prev => prev.map(sub => sub.id === updatedSubscription.id ? updatedSubscription : sub));
     } catch (error) {
       console.error("Failed to update subscription:", error);
-      toast({ variant: "destructive", title: "Error", description: "Could not update subscription." });
+      toast({ variant: "destructive", title: "Error", description: "Could not update subscription. Check API key or network." });
     }
   };
 
-  const deleteSubscription = async (id: string) => {
+  const deleteSubscriptionContext = async (id: string) => {
     try {
       await deleteSubscriptionAction(id);
       setSubscriptions(prev => prev.filter(sub => sub.id !== id));
@@ -162,9 +161,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   
-  const addCategory = async (categoryData: Omit<Category, 'id'>) => {
+  const addCategoryContext = async (categoryData: Omit<Category, 'id'>) => {
     try {
-      // Ensure 'icon' is always DollarSign for new categories as per previous requirement
       const newCategory = await addCategoryAction({ ...categoryData, icon: "DollarSign" });
       setCategories(prev => [newCategory, ...prev]);
     } catch (error) {
@@ -173,7 +171,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateCategory = async (updatedCategoryData: Category) => {
+  const updateCategoryContext = async (updatedCategoryData: Category) => {
      try {
       const updatedCategory = await updateCategoryAction(updatedCategoryData);
       setCategories(prev => prev.map(cat => cat.id === updatedCategory.id ? updatedCategory : cat));
@@ -183,13 +181,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const deleteCategory = async (id: string): Promise<void> => {
+  const deleteCategoryContext = async (id: string): Promise<void> => {
     try {
       const { success } = await deleteCategoryAction(id);
       if (success) {
         setCategories(prev => prev.filter(cat => cat.id !== id));
       } else {
-        // This part of the toast might be redundant if deleteCategoryAction itself doesn't throw for "in use"
         toast({ variant: "destructive", title: "Deletion Failed", description: "Category could not be deleted. It might be in use." });
       }
     } catch (error) {
@@ -198,7 +195,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const resetCategories = async (): Promise<void> => {
+  const resetCategoriesContext = async (): Promise<void> => {
     try {
       const defaultCategories = await resetCategoriesAction();
       setCategories(defaultCategories);
@@ -209,30 +206,57 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   
-  const getCategoryById = (id: string) => categories.find(c => c.id === id);
+  const getCategoryByIdContext = (id: string) => categories.find(c => c.id === id);
 
-  const getAmountInDefaultCurrency = (item: Expense | Subscription): number => {
+  const getAmountInDefaultCurrencyContext = (item: Expense | Subscription): number => {
     if (isLoading || !settings.defaultCurrency) return 0;
 
-    if ('amounts' in item && item.amounts) { // It's an Expense
-      return item.amounts[settings.defaultCurrency] || item.originalAmount; // Fallback to original if somehow not converted
-    } else if ('amount' in item) { // It's a Subscription
-      // Subscriptions are assumed to be in the default currency already
-      return item.amount;
+    // For both Expense and new Subscription model that include 'amounts'
+    if (item.amounts && typeof item.amounts[settings.defaultCurrency] === 'number') {
+      return item.amounts[settings.defaultCurrency];
     }
-    return 0;
+    
+    // Fallback for older Subscription data that might not have 'amounts' or 'originalCurrency'
+    // This assumes the 'amount' field on old subscriptions was in the current default display currency
+    // This is a simplification; true data migration would be more robust.
+    if ('amount' in item && !item.amounts && !('originalAmount'in item) && typeof (item as any).amount === 'number') {
+        return (item as any).amount;
+    }
+
+    // If 'amounts' is missing, but 'originalAmount' and 'originalCurrency' exist
+    // and the 'originalCurrency' matches the default display currency
+    if ('originalAmount' in item && item.originalCurrency === settings.defaultCurrency) {
+        return item.originalAmount;
+    }
+    
+    // If we reach here, it means we can't determine the amount in the default currency.
+    // This might happen if 'amounts' is missing and originalCurrency is different from default,
+    // or if data is malformed.
+    return 0; // Or handle as NaN or throw an error, depending on desired behavior for missing data
   };
 
 
   return (
     <DataContext.Provider value={{
-      expenses, setExpenses, addExpense, updateExpense, deleteExpense, deleteAllExpenses,
-      subscriptions, setSubscriptions, addSubscription, updateSubscription, deleteSubscription,
-      categories, setCategories, addCategory, updateCategory, deleteCategory, resetCategories,
-      getCategoryById,
-      settings, updateSettings,
+      expenses, setExpenses, 
+      addExpense: addExpenseContext, 
+      updateExpense: updateExpenseContext, 
+      deleteExpense: deleteExpenseContext, 
+      deleteAllExpenses: deleteAllExpensesContext,
+      subscriptions, setSubscriptions, 
+      addSubscription: addSubscriptionContext, 
+      updateSubscription: updateSubscriptionContext, 
+      deleteSubscription: deleteSubscriptionContext,
+      categories, setCategories, 
+      addCategory: addCategoryContext, 
+      updateCategory: updateCategoryContext, 
+      deleteCategory: deleteCategoryContext, 
+      resetCategories: resetCategoriesContext,
+      getCategoryById: getCategoryByIdContext,
+      settings, 
+      updateSettings: updateSettingsContext,
       isLoading,
-      getAmountInDefaultCurrency,
+      getAmountInDefaultCurrency: getAmountInDefaultCurrencyContext,
     }}>
       {children}
     </DataContext.Provider>

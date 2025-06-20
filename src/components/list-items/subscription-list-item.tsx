@@ -28,7 +28,7 @@ interface SubscriptionListItemProps {
 }
 
 export function SubscriptionListItem({ subscription, onEdit }: SubscriptionListItemProps) {
-  const { getCategoryById, deleteSubscription, settings, isLoading: isDataLoading } = useData();
+  const { getCategoryById, deleteSubscription, settings, isLoading: isDataLoading, getAmountInDefaultCurrency } = useData();
   const { toast } = useToast();
   const category = getCategoryById(subscription.categoryId);
 
@@ -40,10 +40,15 @@ export function SubscriptionListItem({ subscription, onEdit }: SubscriptionListI
     toast({ title: "Subscription Deleted", description: "The subscription has been successfully deleted." });
   };
 
-  // Subscriptions are assumed to be in the default currency
-  const formattedAmount = isDataLoading 
+  const displayAmount = getAmountInDefaultCurrency(subscription);
+  const formattedDisplayAmount = isDataLoading || !settings.defaultCurrency
     ? "Loading..."
-    : formatCurrency(subscription.amount, settings.defaultCurrency);
+    : formatCurrency(displayAmount, settings.defaultCurrency);
+  
+  const formattedOriginalAmount = subscription.originalCurrency && typeof subscription.originalAmount === 'number'
+    ? formatCurrency(subscription.originalAmount, subscription.originalCurrency)
+    : "N/A";
+
 
   return (
     <Card className="w-full shadow-md hover:shadow-lg transition-shadow duration-200">
@@ -58,9 +63,16 @@ export function SubscriptionListItem({ subscription, onEdit }: SubscriptionListI
               Category: {categoryName} | Starts: {format(new Date(subscription.startDate), "MMM dd, yyyy")}
             </p>
           </div>
-          <p className="text-xl font-semibold text-primary">
-            {formattedAmount}<span className="text-sm text-muted-foreground">/month</span>
-          </p>
+          <div className="text-right">
+            <p className="text-xl font-semibold text-primary">
+              {formattedDisplayAmount}<span className="text-sm text-muted-foreground">/month</span>
+            </p>
+            {subscription.originalCurrency && settings.defaultCurrency !== subscription.originalCurrency && (
+              <p className="text-xs text-muted-foreground">
+                ({formattedOriginalAmount}/month)
+              </p>
+            )}
+          </div>
         </div>
       </CardHeader>
       {subscription.description && (
