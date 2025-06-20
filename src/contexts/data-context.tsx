@@ -59,17 +59,18 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const addCategory = (category: Omit<Category, 'id'>) => {
-    setCategories(prev => [{ ...category, id: generateId() }, ...prev]);
+    // New categories get a DollarSign icon by default, name is provided by user
+    setCategories(prev => [{ ...category, icon: 'DollarSign', id: generateId() }, ...prev]);
   };
 
   const updateCategory = (updatedCategory: Category) => {
-    setCategories(prev => prev.map(cat => cat.id === updatedCategory.id ? updatedCategory : cat));
+    // When updating, preserve the existing icon (could be default or DollarSign)
+    setCategories(prev => prev.map(cat => cat.id === updatedCategory.id ? { ...updatedCategory, icon: cat.icon } : cat));
   };
 
   const deleteCategory = (id: string): boolean => {
     const isCategoryInUse = expenses.some(exp => exp.categoryId === id) || subscriptions.some(sub => sub.categoryId === id);
     if (isCategoryInUse) {
-      // Optionally, show a toast message here indicating category is in use
       return false;
     }
     setCategories(prev => prev.filter(cat => cat.id !== id));
