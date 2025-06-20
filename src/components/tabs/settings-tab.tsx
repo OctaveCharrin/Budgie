@@ -69,6 +69,16 @@ export function SettingsTab() {
     return (
       <div className="space-y-8 p-1">
         <section>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-semibold font-headline"><Skeleton className="h-9 w-48" /></h2>
+            <Skeleton className="h-10 w-36" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
+          </div>
+        </section>
+        <Separator />
+        <section>
           <h2 className="text-2xl font-semibold font-headline mb-4"><Skeleton className="h-9 w-1/2" /></h2>
           <Card>
             <CardHeader>
@@ -89,16 +99,6 @@ export function SettingsTab() {
             </CardContent>
           </Card>
         </section>
-        <Separator />
-        <section>
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold font-headline"><Skeleton className="h-9 w-48" /></h2>
-            <Skeleton className="h-10 w-36" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
-          </div>
-        </section>
       </div>
     );
   }
@@ -106,6 +106,39 @@ export function SettingsTab() {
 
   return (
     <div className="space-y-8 p-1">
+      <section>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-semibold font-headline">Manage Categories</h2>
+          <Dialog open={isCategoryDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) closeCategoryDialogAndReset(); else setIsCategoryDialogOpen(true); }}>
+            <DialogTrigger asChild>
+              <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Category
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>{editingCategory ? "Edit Category" : "Add New Category"}</DialogTitle>
+              </DialogHeader>
+              <CategoryForm category={editingCategory} onSave={closeCategoryDialogAndReset} />
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {sortedCategories.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sortedCategories.map(category => (
+              <CategoryListItem key={category.id} category={category} onEdit={handleEditCategory} />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-10">
+              <p className="text-muted-foreground">No categories found. Add one to get started or reset to defaults.</p>
+          </div>
+        )}
+      </section>
+
+      <Separator />
+
       <section>
         <h2 className="text-2xl font-semibold font-headline mb-4">Data Management</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -180,41 +213,6 @@ export function SettingsTab() {
           </Card>
         </div>
       </section>
-
-      <Separator />
-
-      <section>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-semibold font-headline">Manage Categories</h2>
-          <Dialog open={isCategoryDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) closeCategoryDialogAndReset(); else setIsCategoryDialogOpen(true); }}>
-            <DialogTrigger asChild>
-              <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Category
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>{editingCategory ? "Edit Category" : "Add New Category"}</DialogTitle>
-              </DialogHeader>
-              <CategoryForm category={editingCategory} onSave={closeCategoryDialogAndReset} />
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {sortedCategories.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sortedCategories.map(category => (
-              <CategoryListItem key={category.id} category={category} onEdit={handleEditCategory} />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-10">
-              <p className="text-muted-foreground">No categories found. Add one to get started or reset to defaults.</p>
-          </div>
-        )}
-      </section>
     </div>
   );
 }
-
-    
