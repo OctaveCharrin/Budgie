@@ -1,11 +1,10 @@
 
 "use client";
 
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ChartConfig } from "@/components/ui/chart"; 
 import { useData } from "@/contexts/data-context";
-import type { ReportPeriod, ChartDataPoint } from "@/lib/types";
+import type { ReportPeriod, ChartDataPoint, Category, CurrencyCode } from "@/lib/types";
 import { 
   format, 
   startOfWeek, endOfWeek, 
@@ -19,6 +18,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
 
+const COLORS = [
+  'hsl(var(--chart-1))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))',
+];
 
 interface ReportChartProps {
   period: ReportPeriod;
@@ -28,14 +34,6 @@ interface ReportChartProps {
 export function ReportChart({ period, date }: ReportChartProps) {
   const { expenses, subscriptions, getCategoryById, isLoading, settings, getAmountInDefaultCurrency, categories } = useData();
   const defaultCurrency = settings.defaultCurrency;
-
-  const chartConfig = {
-    valueInDefaultCurrency: { 
-      label: `Total Spending (${defaultCurrency})`,
-      color: "hsl(var(--chart-1))",
-    },
-  } satisfies ChartConfig;
-
 
   const calculateReportData = (): ChartDataPoint[] => {
     if (isLoading || !defaultCurrency || !categories) return [];
@@ -74,10 +72,9 @@ export function ReportChart({ period, date }: ReportChartProps) {
       let subContribution = 0;
       const monthlyAmountInDefault = getAmountInDefaultCurrency(sub);
 
-      if (isAfter(subStartDate, reportPeriodEnd)) return; // Subscription starts after the report period ends
+      if (isAfter(subStartDate, reportPeriodEnd)) return; 
 
       if (period === 'monthly') {
-        // Active if starts before/on report end AND (no end date OR ends after/on report start)
         const isActiveInMonth = 
           (isEqual(subStartDate, reportPeriodEnd) || isBefore(subStartDate, reportPeriodEnd)) &&
           (!subEndDate || isEqual(subEndDate, reportPeriodStart) || isAfter(subEndDate, reportPeriodStart));
@@ -96,11 +93,10 @@ export function ReportChart({ period, date }: ReportChartProps) {
              subContribution += monthlyAmountInDefault;
           }
         });
-      } else { // weekly
-        const billingMonthForWeekStart = startOfMonth(reportPeriodStart); // The month this week's expenses are billed against for this sub
+      } else { 
+        const billingMonthForWeekStart = startOfMonth(reportPeriodStart); 
         const billingMonthForWeekEnd = endOfMonth(reportPeriodStart);
 
-        // Is the subscription active at all during this billing month?
         const isActiveInBillingMonth =
           (isEqual(subStartDate, billingMonthForWeekEnd) || isBefore(subStartDate, billingMonthForWeekEnd)) &&
           (!subEndDate || isEqual(subEndDate, billingMonthForWeekStart) || isAfter(subEndDate, billingMonthForWeekStart));
@@ -132,8 +128,8 @@ export function ReportChart({ period, date }: ReportChartProps) {
     
     return Object.entries(aggregatedData).map(([categoryId, total]) => ({
       name: getCategoryById(categoryId)?.name || (categoryId === subscriptionsCategoryId ? 'Subscriptions' : "Uncategorized"),
-      valueInDefaultCurrency: total,
-    })).sort((a,b) => b.valueInDefaultCurrency - a.valueInDefaultCurrency);
+      value: total, // Renamed from valueInDefaultCurrency to generic 'value' for pie chart
+    })).filter(d => d.value > 0).sort((a,b) => b.value - a.value);
   };
 
   const data = calculateReportData();
@@ -141,11 +137,11 @@ export function ReportChart({ period, date }: ReportChartProps) {
   const getTitle = () => {
     switch (period) {
       case 'weekly':
-        return `Weekly Report: ${format(startOfWeek(date, { weekStartsOn: 1 }), "MMM d")} - ${format(endOfWeek(date, { weekStartsOn: 1 }), "MMM d, yyyy")}`;
+        return `Spending Breakdown: ${format(startOfWeek(date, { weekStartsOn: 1 }), "MMM d")} - ${format(endOfWeek(date, { weekStartsOn: 1 }), "MMM d, yyyy")}`;
       case 'monthly':
-        return `Monthly Report: ${format(date, "MMMM yyyy")}`;
+        return `Spending Breakdown: ${format(date, "MMMM yyyy")}`;
       case 'yearly':
-        return `Yearly Report: ${format(date, "yyyy")}`;
+        return `Spending Breakdown: ${format(date, "yyyy")}`;
     }
   }
   
@@ -156,7 +152,7 @@ export function ReportChart({ period, date }: ReportChartProps) {
            <Skeleton className="h-7 w-3/4" />
         </CardHeader>
         <CardContent className="h-[350px] flex items-center justify-center">
-          <Skeleton className="h-full w-full" />
+          <Skeleton className="h-full w-full rounded-full" />
         </CardContent>
       </Card>
     );
@@ -169,11 +165,26 @@ export function ReportChart({ period, date }: ReportChartProps) {
           <CardTitle className="text-xl font-headline">{getTitle()}</CardTitle>
         </CardHeader>
         <CardContent className="h-[350px] flex items-center justify-center">
-          <p className="text-muted-foreground">No data available for this period.</p>
+          <p className="text-muted-foreground">No spending data available for this period.</p>
         </CardContent>
       </Card>
     )
   }
+
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const dataPoint = payload[0].payload;
+      const totalSpendingForPeriod = data.reduce((sum, entry) => sum + entry.value, 0);
+      const percentage = totalSpendingForPeriod > 0 ? (dataPoint.value / totalSpendingForPeriod * 100).toFixed(1) : 0;
+      return (
+        <div className="p-2 bg-background border border-border rounded-md shadow-lg">
+          <p className="font-semibold">{`${dataPoint.name}`}</p>
+          <p className="text-sm">{`${formatCurrency(dataPoint.value, defaultCurrency)} (${percentage}%)`}</p>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <Card>
@@ -183,33 +194,44 @@ export function ReportChart({ period, date }: ReportChartProps) {
       <CardContent>
         <div style={{ width: '100%', height: 350 }}>
           <ResponsiveContainer>
-            <BarChart data={data} margin={{ top: 5, right: 20, left: 20, bottom: 50 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis 
-                dataKey="name" 
-                angle={-45} 
-                textAnchor="end" 
-                height={60} 
-                interval={0}
-                tick={{ fontSize: 12 }} 
-              />
-              <YAxis 
-                tickFormatter={(value) => formatCurrency(value, defaultCurrency)} 
-                tick={{ fontSize: 12 }} 
-              />
-              <Tooltip
-                cursor={{ fill: 'hsl(var(--muted))' }}
-                contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)'}}
-                labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 'bold' }}
-                formatter={(value: number, name: string, props) => {
-                    const configKey = props.dataKey as keyof typeof chartConfig; 
-                    const label = chartConfig[configKey]?.label || name;
-                    return [formatCurrency(value, defaultCurrency), label];
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                outerRadius={120}
+                fill="#8884d8"
+                dataKey="value"
+                nameKey="name"
+                label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name }) => {
+                  const RADIAN = Math.PI / 180;
+                  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+                  const x = cx + (radius + 15) * Math.cos(-midAngle * RADIAN);
+                  const y = cy + (radius + 15) * Math.sin(-midAngle * RADIAN);
+                  const textAnchor = x > cx ? 'start' : 'end';
+                  if (percent * 100 < 5) return null; // Hide label for very small slices
+
+                  return (
+                    <text x={x} y={y} fill="hsl(var(--foreground))" textAnchor={textAnchor} dominantBaseline="central" fontSize="12px">
+                      {`${name} (${(percent * 100).toFixed(0)}%)`}
+                    </text>
+                  );
+                }}
+              >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip content={<CustomTooltip />} />
+              <Legend 
+                wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} 
+                formatter={(value, entry) => {
+                     const { color } = entry;
+                     return <span style={{ color }}>{value}</span>;
                 }}
               />
-              <Legend wrapperStyle={{ fontSize: '12px' }} />
-              <Bar dataKey="valueInDefaultCurrency" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
-            </BarChart>
+            </PieChart>
           </ResponsiveContainer>
         </div>
       </CardContent>

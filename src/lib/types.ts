@@ -1,4 +1,5 @@
 
+
 import type { LucideIcon } from 'lucide-react';
 
 export const SUPPORTED_CURRENCIES = ['USD', 'EUR', 'JPY', 'CHF'] as const;
@@ -38,8 +39,9 @@ export interface AppSettings {
 
 export type ReportPeriod = 'weekly' | 'monthly' | 'yearly';
 
+// Updated to reflect that 'value' is the generic term for the pie chart data key
 export interface ChartDataPoint {
-  name: string;
-  [key: string]: number | string;
+  name: string; // Typically category name
+  value: number; // The aggregated amount for that category in the default currency
 }
 
