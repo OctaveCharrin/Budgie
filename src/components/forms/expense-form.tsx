@@ -31,7 +31,7 @@ import type { Expense, CurrencyCode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { SUPPORTED_CURRENCIES } from "@/lib/constants";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const formSchema = z.object({
   date: z.date({ required_error: "Date is required." }),
@@ -51,6 +51,7 @@ interface ExpenseFormProps {
 export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
   const { categories, addExpense, updateExpense, settings, isLoading: isDataLoading } = useData();
   const { toast } = useToast();
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(formSchema),
@@ -128,7 +129,7 @@ export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
           render={({ field }) => (
             <FormItem className="flex flex-col">
               <FormLabel>Date</FormLabel>
-              <Popover>
+              <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                 <PopoverTrigger asChild>
                   <FormControl>
                     <Button
@@ -151,7 +152,10 @@ export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
                   <Calendar
                     mode="single"
                     selected={field.value}
-                    onSelect={field.onChange}
+                    onSelect={(date) => {
+                      field.onChange(date);
+                      setIsCalendarOpen(false);
+                    }}
                     initialFocus
                   />
                 </PopoverContent>

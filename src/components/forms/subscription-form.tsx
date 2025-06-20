@@ -31,7 +31,7 @@ import type { Subscription, CurrencyCode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { SUPPORTED_CURRENCIES } from "@/lib/constants";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const formSchema = z.object({
   name: z.string().min(1, "Subscription name is required."),
@@ -60,6 +60,8 @@ interface SubscriptionFormProps {
 export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps) {
   const { categories, addSubscription, updateSubscription, settings, isLoading: isDataLoading } = useData();
   const { toast } = useToast();
+  const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
+  const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
 
   const form = useForm<SubscriptionFormValues>({
     resolver: zodResolver(formSchema),
@@ -167,7 +169,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
             render={({ field }) => (
               <FormItem className="flex flex-col">
                 <FormLabel>Start Date</FormLabel>
-                <Popover>
+                <Popover open={isStartDatePickerOpen} onOpenChange={setIsStartDatePickerOpen}>
                   <PopoverTrigger asChild>
                     <FormControl>
                       <Button
@@ -190,7 +192,10 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
                     <Calendar
                       mode="single"
                       selected={field.value}
-                      onSelect={field.onChange}
+                      onSelect={(date) => {
+                        field.onChange(date);
+                        setIsStartDatePickerOpen(false);
+                      }}
                       initialFocus
                     />
                   </PopoverContent>
@@ -205,7 +210,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
             render={({ field }) => (
               <FormItem className="flex flex-col">
                 <FormLabel>End Date (Optional)</FormLabel>
-                <Popover>
+                <Popover open={isEndDatePickerOpen} onOpenChange={setIsEndDatePickerOpen}>
                   <PopoverTrigger asChild>
                     <FormControl>
                       <Button
@@ -228,7 +233,10 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
                     <Calendar
                       mode="single"
                       selected={field.value}
-                      onSelect={(date) => field.onChange(date)} // Allow undefined for clearing
+                      onSelect={(date) => {
+                        field.onChange(date);
+                        setIsEndDatePickerOpen(false);
+                      }}
                       initialFocus
                       disabled={(date) => 
                         form.getValues("startDate") && date < form.getValues("startDate")
