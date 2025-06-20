@@ -54,6 +54,7 @@ export function SettingsTab() {
 
   const [apiKeyInput, setApiKeyInput] = useState(""); 
   const [showApiKey, setShowApiKey] = useState(false);
+  const [isRemoveApiKeyAlertOpen, setIsRemoveApiKeyAlertOpen] = useState(false);
   
   const { toast } = useToast();
 
@@ -121,7 +122,6 @@ export function SettingsTab() {
 
   const handleApiKeySave = async () => {
     try {
-      // If key is empty, status is 'missing', otherwise 'unchecked' until validated
       const newStatus = apiKeyInput.trim() === '' ? 'missing' : 'unchecked';
       await updateSettings({ ...settings, apiKey: apiKeyInput.trim(), apiKeyStatus: newStatus });
       toast({ title: "API Key Saved", description: "ExchangeRate-API key has been updated. Status will be validated on next use." });
@@ -141,6 +141,7 @@ export function SettingsTab() {
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Could not remove API key." });
     }
+    setIsRemoveApiKeyAlertOpen(false); // Close dialog
   };
 
   const getMaskedApiKeyDisplay = () => {
@@ -178,7 +179,7 @@ export function SettingsTab() {
             </p>
           );
         }
-        return ( // Fallback for missing key if somehow status is unchecked
+        return ( 
           <p className="text-sm text-muted-foreground mt-2">
             API Key not set. Live currency conversions are disabled. Fallback rates will be used.
           </p>
@@ -379,12 +380,30 @@ export function SettingsTab() {
             </CardContent>
             <CardFooter className="gap-2">
                  <Button onClick={handleApiKeySave} className="bg-accent hover:bg-accent/90 text-accent-foreground">Save API Key</Button>
-                 <Button
-                    variant="outline"
-                    onClick={handleApiKeyRemove}
-                  >
-                    Remove Key
-                  </Button>
+                 <AlertDialog open={isRemoveApiKeyAlertOpen} onOpenChange={setIsRemoveApiKeyAlertOpen}>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive">
+                            <Trash2 className="mr-2 h-4 w-4" /> Remove Key
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will remove the saved API key. Currency conversions will use fallback rates until a new key is provided.
+                        </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleApiKeyRemove}
+                            className="bg-destructive hover:bg-destructive/90"
+                        >
+                            Yes, remove key
+                        </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </CardFooter>
         </Card>
       </section>
