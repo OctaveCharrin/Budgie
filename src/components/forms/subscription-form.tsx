@@ -33,10 +33,10 @@ import { useToast } from "@/hooks/use-toast";
 import { SUPPORTED_CURRENCIES } from "@/lib/constants";
 import { useEffect } from "react";
 
+// categoryId removed from schema
 const formSchema = z.object({
   name: z.string().min(1, "Subscription name is required."),
   startDate: z.date({ required_error: "Start date is required." }),
-  categoryId: z.string().min(1, "Category is required."),
   originalAmount: z.coerce.number().positive("Amount must be positive."),
   originalCurrency: z.enum(SUPPORTED_CURRENCIES, { required_error: "Currency is required." }),
   description: z.string().optional(),
@@ -59,7 +59,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
       ? { 
           name: subscription.name,
           startDate: new Date(subscription.startDate), 
-          categoryId: subscription.categoryId,
+          // categoryId removed
           originalAmount: Number(subscription.originalAmount), 
           originalCurrency: subscription.originalCurrency,
           description: subscription.description || "" 
@@ -67,10 +67,10 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
       : { 
           name: "",
           startDate: new Date(), 
-          originalAmount: '' as unknown as number, // Initialize with empty string
+          originalAmount: '' as unknown as number, 
           originalCurrency: settings.defaultCurrency, 
           description: "",
-          categoryId: ""
+          // categoryId removed
         },
   });
 
@@ -79,22 +79,36 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
       form.reset({ 
         name: "",
         startDate: new Date(), 
-        originalAmount: '' as unknown as number, // Reset with empty string
+        originalAmount: '' as unknown as number, 
         originalCurrency: settings.defaultCurrency, 
         description: "",
-        categoryId: ""
+        // categoryId removed
       });
     }
   }, [settings.defaultCurrency, subscription, form, isDataLoading]);
 
 
   async function onSubmit(values: SubscriptionFormValues) {
+    const subscriptionsCategory = categories.find(
+      (cat) => cat.id === 'subscriptions' || cat.name.toLowerCase() === 'subscriptions'
+    );
+
+    if (!subscriptionsCategory) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "The 'Subscriptions' category is missing. Please ensure it exists in Settings.",
+      });
+      return;
+    }
+    const subscriptionsCategoryId = subscriptionsCategory.id;
+
     if (subscription) { 
       const updatedSubscriptionData: Subscription = {
         ...subscription, 
         name: values.name,
         startDate: values.startDate.toISOString(),
-        categoryId: values.categoryId,
+        categoryId: subscriptionsCategoryId, // Set programmatically
         originalAmount: values.originalAmount,
         originalCurrency: values.originalCurrency,
         description: values.description,
@@ -105,11 +119,12 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
       const newSubscriptionData = {
         name: values.name,
         startDate: values.startDate.toISOString(),
-        categoryId: values.categoryId,
+        categoryId: subscriptionsCategoryId, // Set programmatically
         originalAmount: values.originalAmount,
         originalCurrency: values.originalCurrency,
         description: values.description,
       };
+      // The addSubscription type in context expects these fields explicitly.
       await addSubscription(newSubscriptionData as Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode; name: string; categoryId: string; startDate: string; description?: string; });
       toast({ title: "Subscription Added", description: "New subscription has been successfully added." });
     }
@@ -117,8 +132,8 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
     form.reset({ 
         name: "",
         startDate: new Date(), 
-        categoryId: '', 
-        originalAmount: '' as unknown as number, // Reset with empty string
+        // categoryId removed
+        originalAmount: '' as unknown as number, 
         originalCurrency: settings.defaultCurrency, 
         description: '' 
     });
@@ -220,30 +235,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
             />
         </div>
 
-        <FormField
-          control={form.control}
-          name="categoryId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Category</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value || ""}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a category" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* Category Field Removed */}
 
         <FormField
           control={form.control}
@@ -265,3 +257,4 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
     </Form>
   );
 }
+

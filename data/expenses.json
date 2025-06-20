@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "id": "8e0a4421-94fe-4dde-94e9-346775f6e30b",
+    "date": "2025-06-20T04:22:30.699Z",
+    "categoryId": "transportation",
+    "originalAmount": 100,
+    "originalCurrency": "USD",
+    "amounts": {
+      "USD": 100,
+      "EUR": 87.01,
+      "JPY": 14534.35,
+      "CHF": 81.72
+    },
+    "description": "Hello world"
+  }
+]
