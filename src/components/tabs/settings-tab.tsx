@@ -35,6 +35,7 @@ export function SettingsTab() {
     categories, 
     isLoading: isDataLoading, 
     deleteAllExpenses, 
+    deleteAllSubscriptions,
     resetCategories: resetCategoriesContext,
     settings,
     updateSettings 
@@ -45,6 +46,9 @@ export function SettingsTab() {
   const [isDeleteExpensesAlertOpen, setIsDeleteExpensesAlertOpen] = useState(false);
   const [deleteExpensesConfirmationInput, setDeleteExpensesConfirmationInput] = useState("");
   
+  const [isDeleteSubscriptionsAlertOpen, setIsDeleteSubscriptionsAlertOpen] = useState(false);
+  const [deleteSubscriptionsConfirmationInput, setDeleteSubscriptionsConfirmationInput] = useState("");
+
   const [isResetCategoriesAlertOpen, setIsResetCategoriesAlertOpen] = useState(false);
   const [resetCategoriesConfirmationInput, setResetCategoriesConfirmationInput] = useState("");
   
@@ -75,6 +79,21 @@ export function SettingsTab() {
     }
     setDeleteExpensesConfirmationInput("");
     setIsDeleteExpensesAlertOpen(false);
+  };
+
+  const handleDeleteAllSubscriptions = async () => {
+    if (deleteSubscriptionsConfirmationInput !== "DELETE") {
+      toast({ variant: "destructive", title: "Confirmation Failed", description: "Please type DELETE to confirm." });
+      return;
+    }
+    try {
+      await deleteAllSubscriptions();
+      toast({ title: "Success", description: "All subscriptions have been deleted." });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Could not delete subscriptions." });
+    }
+    setDeleteSubscriptionsConfirmationInput("");
+    setIsDeleteSubscriptionsAlertOpen(false);
   };
 
   const handleResetCategories = async () => {
@@ -144,23 +163,32 @@ export function SettingsTab() {
         {/* Data Management Skeleton */}
         <section>
           <Skeleton className="h-9 w-1/2 mb-4" /> {/* "Data Management" title */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card className="shadow-md">
               <CardHeader>
-                <Skeleton className="h-6 w-3/4 mb-2" /> {/* CardTitle */}
-                <Skeleton className="h-4 w-full" /> {/* CardDescription */}
+                <Skeleton className="h-6 w-3/4 mb-2" /> 
+                <Skeleton className="h-4 w-full" /> 
               </CardHeader>
               <CardContent>
-                <Skeleton className="h-10 w-48 rounded-lg" /> {/* Button */}
+                <Skeleton className="h-10 w-48 rounded-lg" /> 
               </CardContent>
             </Card>
             <Card className="shadow-md">
               <CardHeader>
-                <Skeleton className="h-6 w-3/4 mb-2" /> {/* CardTitle */}
-                <Skeleton className="h-4 w-full" /> {/* CardDescription */}
+                <Skeleton className="h-6 w-3/4 mb-2" /> 
+                <Skeleton className="h-4 w-full" /> 
               </CardHeader>
               <CardContent>
-                <Skeleton className="h-10 w-56 rounded-lg" /> {/* Button */}
+                <Skeleton className="h-10 w-56 rounded-lg" /> 
+              </CardContent>
+            </Card>
+            <Card className="shadow-md">
+              <CardHeader>
+                <Skeleton className="h-6 w-3/4 mb-2" /> 
+                <Skeleton className="h-4 w-full" /> 
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-10 w-56 rounded-lg" /> 
               </CardContent>
             </Card>
           </div>
@@ -243,7 +271,7 @@ export function SettingsTab() {
 
       <section>
         <h2 className="text-2xl font-semibold font-headline mb-4">Data Management</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <Card className="shadow-md">
             <CardHeader>
               <CardTitle>Delete All Expenses</CardTitle>
@@ -289,6 +317,58 @@ export function SettingsTab() {
                       className="bg-destructive hover:bg-destructive/90"
                     >
                       Yes, delete all expenses
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle>Delete All Subscriptions</CardTitle>
+              <CardDescription>
+                Permanently delete all your recorded subscriptions. This action cannot be undone.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AlertDialog open={isDeleteSubscriptionsAlertOpen} onOpenChange={(open) => {
+                setIsDeleteSubscriptionsAlertOpen(open);
+                if (!open) setDeleteSubscriptionsConfirmationInput("");
+              }}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                    <Trash2 className="mr-2 h-4 w-4" /> Delete All Subscriptions
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete all subscription data. This action cannot be undone.
+                      To confirm, please type "DELETE" in the box below.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="py-2">
+                    <Label htmlFor="deleteSubscriptionsConfirmInput" className="sr-only">
+                      Type DELETE to confirm
+                    </Label>
+                    <Input
+                      id="deleteSubscriptionsConfirmInput"
+                      value={deleteSubscriptionsConfirmationInput}
+                      onChange={(e) => setDeleteSubscriptionsConfirmationInput(e.target.value)}
+                      placeholder='Type "DELETE" here'
+                      className="border-destructive focus-visible:ring-destructive"
+                    />
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setDeleteSubscriptionsConfirmationInput("")}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteAllSubscriptions}
+                      disabled={deleteSubscriptionsConfirmationInput !== "DELETE"}
+                      className="bg-destructive hover:bg-destructive/90"
+                    >
+                      Yes, delete all subscriptions
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

@@ -308,3 +308,9 @@ export async function deleteSubscriptionAction(id: string): Promise<{ success: b
   await db.run('DELETE FROM subscriptions WHERE id = ?', id);
   return { success: true };
 }
+
+export async function deleteAllSubscriptionsAction(): Promise<{ success: boolean }> {
+  const db = await getDb();
+  await db.run('DELETE FROM subscriptions');
+  return { success: true };
+}

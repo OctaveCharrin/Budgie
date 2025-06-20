@@ -8,7 +8,7 @@ import { DEFAULT_SETTINGS, DEFAULT_CATEGORIES, DATA_FILE_PATHS } from '@/lib/con
 import {
   getCategoriesAction, addCategoryAction, updateCategoryAction, deleteCategoryAction, resetCategoriesAction,
   getExpensesAction, addExpenseAction, updateExpenseAction, deleteExpenseAction, deleteAllExpensesAction,
-  getSubscriptionsAction, addSubscriptionAction, updateSubscriptionAction, deleteSubscriptionAction,
+  getSubscriptionsAction, addSubscriptionAction, updateSubscriptionAction, deleteSubscriptionAction, deleteAllSubscriptionsAction,
   getSettingsAction, updateSettingsAction
 } from '@/actions/data-actions';
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +26,7 @@ interface DataContextProps {
   addSubscription: (subscriptionData: Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode; name: string; categoryId: string; startDate: string; endDate?:string; description?: string; }) => Promise<void>;
   updateSubscription: (subscription: Subscription) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
+  deleteAllSubscriptions: () => Promise<void>;
   categories: Category[];
   setCategories: (categories: Category[] | ((val: Category[]) => Category[])) => void;
   addCategory: (category: Omit<Category, 'id' | 'isDefault'>) => Promise<void>;
@@ -161,6 +162,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const deleteAllSubscriptionsContext = async () => {
+    try {
+      await deleteAllSubscriptionsAction();
+      setSubscriptions([]);
+    } catch (error) {
+      console.error("Failed to delete all subscriptions:", error);
+      toast({ variant: "destructive", title: "Error", description: `Could not delete all subscriptions: ${error instanceof Error ? error.message : "Unknown error"}` });
+      throw error;
+    }
+  };
+
   // Category context functions now operate on JSON-based server actions
   const addCategoryContext = async (categoryData: Omit<Category, 'id' | 'isDefault'>) => {
     try {
@@ -242,6 +254,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       addSubscription: addSubscriptionContext,
       updateSubscription: updateSubscriptionContext,
       deleteSubscription: deleteSubscriptionContext,
+      deleteAllSubscriptions: deleteAllSubscriptionsContext,
       categories, setCategories,
       addCategory: addCategoryContext,
       updateCategory: updateCategoryContext,
