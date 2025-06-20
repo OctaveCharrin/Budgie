@@ -178,10 +178,11 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
              >
                 <RechartsPrimitive.Label
                     value={`Avg: ${formatCurrency(totalAverageForPeriod, defaultCurrency, 'en-US').replace(defaultCurrency, '')}`}
-                    position="right"
+                    position="left"
                     fill="hsl(var(--destructive))"
                     fontSize={10}
-                    dy={-5} // Adjust vertical position
+                    dy={-5} 
+                    dx={5} 
                 />
              </ReferenceLine>
           )}
@@ -194,3 +195,4 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
 // RechartsPrimitive.Label needs to be imported if not already globally available in Recharts
 // For explicit import, if `Label` is directly from `recharts`
 import * as RechartsPrimitive from 'recharts';
+
