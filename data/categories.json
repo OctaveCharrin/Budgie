@@ -2,51 +2,61 @@
   {
     "id": "restaurant",
     "name": "Restaurant",
-    "icon": "UtensilsCrossed"
+    "icon": "UtensilsCrossed",
+    "isDefault": true
   },
   {
     "id": "bar",
     "name": "Bar",
-    "icon": "Martini"
+    "icon": "Martini",
+    "isDefault": true
   },
   {
     "id": "transportation",
     "name": "Transportation",
-    "icon": "Bus"
+    "icon": "Bus",
+    "isDefault": true
   },
   {
     "id": "subscriptions",
     "name": "Subscriptions",
-    "icon": "Repeat"
+    "icon": "Repeat",
+    "isDefault": true
   },
   {
     "id": "groceries",
     "name": "Groceries",
-    "icon": "ShoppingCart"
+    "icon": "ShoppingCart",
+    "isDefault": true
   },
   {
     "id": "food",
     "name": "Food",
-    "icon": "Apple"
+    "icon": "Apple",
+    "isDefault": true
   },
   {
     "id": "gift",
     "name": "Gift",
-    "icon": "Gift"
+    "icon": "Gift",
+    "isDefault": true
   },
   {
     "id": "home",
     "name": "Home",
-    "icon": "Home"
+    "icon": "Home",
+    "isDefault": true
   },
   {
     "id": "car",
     "name": "Car",
-    "icon": "Car"
+    "icon": "Car",
+    "isDefault": true
   },
   {
     "id": "tech",
     "name": "Tech",
-    "icon": "Laptop"
+    "icon": "Laptop",
+    "isDefault": true
   }
 ]

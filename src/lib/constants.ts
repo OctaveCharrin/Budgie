@@ -17,9 +17,6 @@ export const DEFAULT_CATEGORIES: Category[] = [
 ];
 
 export const DATA_FILE_PATHS = {
-  expenses: 'expenses.json',
-  subscriptions: 'subscriptions.json',
-  categories: 'categories.json',
   settings: 'settings.json',
 };
 
