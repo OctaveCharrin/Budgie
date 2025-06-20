@@ -177,10 +177,10 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
           {minMax && (
             <>
               <p className="text-xs text-muted-foreground">
-                {`Min: ${formatCurrency(minMax[0], defaultCurrency)}`}
+                {`Max: ${formatCurrency(minMax[1], defaultCurrency)}`}
               </p>
               <p className="text-xs text-muted-foreground">
-                {`Max: ${formatCurrency(minMax[1], defaultCurrency)}`}
+                {`Min: ${formatCurrency(minMax[0], defaultCurrency)}`}
               </p>
             </>
           )}
