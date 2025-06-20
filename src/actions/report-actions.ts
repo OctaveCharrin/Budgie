@@ -1,4 +1,3 @@
-
 'use server';
 
 import {
@@ -10,26 +9,30 @@ import {
   isWithinInterval, isAfter, isEqual, isBefore
 } from 'date-fns';
 import type { Expense, Subscription, Category, CurrencyCode, ReportPeriod, DailyTotalDataPoint, CategoryBreakdownPoint, OverallPeriodMetrics } from '@/lib/types';
-import { getExpensesAction, getSubscriptionsAction, getCategoriesAction } from './data-actions';
-import { SUPPORTED_CURRENCIES } from '@/lib/constants'; // Ensure this provides the array
+import { getSubscriptionsAction, getCategoriesAction } from './data-actions';
+import { SUPPORTED_CURRENCIES } from '@/lib/constants';
+import { openDb } from '@/lib/db'; // Import openDb
+
+// Helper to get the correct amount column name for SQL queries
+const getAmountColumnForDb = (currency: CurrencyCode): string => {
+  const lowerCurrency = currency.toLowerCase();
+  if (!SUPPORTED_CURRENCIES.map(c => c.toLowerCase()).includes(lowerCurrency)) {
+    console.warn(`Requested currency ${currency} for SQL query is not directly supported as a pre-converted column. Falling back to originalAmount and originalCurrency which might not be ideal for aggregated reports.`);
+    // This fallback is problematic for direct SQL SUMs if original currencies differ.
+    // The design relies on pre-converted columns for efficient SQL aggregation.
+    // For now, this will likely cause issues if an unsupported defaultCurrency is somehow passed.
+    // A robust solution would be to ensure defaultCurrency is always one for which a column exists,
+    // or perform conversion post-SQL if summing originalAmount.
+    // Given the current structure, we must use a pre-converted column.
+    throw new Error(`Invalid default currency for SQL query: ${currency}. No pre-converted amount column exists.`);
+  }
+  return `amount_${lowerCurrency}`;
+};
+
 
 // Helper to get amount in default currency, duplicated here for server-side use
 // without relying on client-side context.
-const getAmountInDefaultCurrencyForExpense = (expense: Expense, defaultCurrency: CurrencyCode): number => {
-    if (!expense.amounts || typeof expense.amounts[defaultCurrency] !== 'number') {
-        // Fallback or log warning if conversion is missing
-        if (expense.originalCurrency === defaultCurrency) return expense.originalAmount;
-        console.warn(`Currency conversion for ${defaultCurrency} not found on expense ID ${expense.id}. Falling back to original amount if currency matches, else 0.`);
-        return 0;
-    }
-    const val = expense.amounts[defaultCurrency];
-    if (isNaN(val) || typeof val !== 'number') {
-      console.warn(`NaN or invalid number detected for expense ${expense.id} in ${defaultCurrency}. Using 0.`);
-      return 0;
-    }
-    return val;
-};
-
+// This is primarily for subscriptions as expenses are now summed via SQL using the correct column.
 const getAmountInDefaultCurrencyForSubscription = (subscription: Subscription, defaultCurrency: CurrencyCode): number => {
     if (!subscription.amounts || typeof subscription.amounts[defaultCurrency] !== 'number') {
         if (subscription.originalCurrency === defaultCurrency) return subscription.originalAmount;
@@ -51,6 +54,8 @@ export async function getOverallPeriodMetrics(
   defaultCurrency: CurrencyCode
 ): Promise<OverallPeriodMetrics> {
   const selectedDate = parseISO(selectedDateString);
+  const db = await openDb();
+  const amountColumnName = getAmountColumnForDb(defaultCurrency);
 
   let reportPeriodStart: Date, reportPeriodEnd: Date;
   switch (period) {
@@ -68,28 +73,62 @@ export async function getOverallPeriodMetrics(
       reportPeriodEnd = endOfYear(selectedDate);
       break;
   }
+  
+  const reportPeriodStartIso = reportPeriodStart.toISOString();
+  const reportPeriodEndIso = reportPeriodEnd.toISOString();
 
-  const [allExpenses, allSubscriptions, allCategories] = await Promise.all([
-    getExpensesAction(),
-    getSubscriptionsAction(),
+  // --- Fetch pre-aggregated expense data using SQL ---
+  const dailyExpenseTotalsFromDb: { expense_day: string; daily_total: number }[] = await db.all(
+    `SELECT date(date) AS expense_day, SUM(${amountColumnName}) as daily_total
+     FROM expenses
+     WHERE date >= ? AND date <= ?
+     GROUP BY expense_day`,
+    reportPeriodStartIso, reportPeriodEndIso
+  );
+
+  const categoryExpenseTotalsFromDb: { categoryId: string; category_total: number }[] = await db.all(
+    `SELECT categoryId, SUM(${amountColumnName}) as category_total
+     FROM expenses
+     WHERE date >= ? AND date <= ?
+     GROUP BY categoryId`,
+    reportPeriodStartIso, reportPeriodEndIso
+  );
+  
+  const weekdayExpenseTotalsAggregated: { day_of_week: number; weekday_total: number }[] = await db.all(
+    `SELECT day_of_week, SUM(${amountColumnName}) as weekday_total
+     FROM expenses
+     WHERE date >= ? AND date <= ?
+     GROUP BY day_of_week`,
+    reportPeriodStartIso, reportPeriodEndIso
+  );
+  const finalWeekdayExpenseTotals = Array(7).fill(0);
+  weekdayExpenseTotalsAggregated.forEach(row => {
+    if (row.day_of_week >= 0 && row.day_of_week <=6) {
+       finalWeekdayExpenseTotals[row.day_of_week] = row.weekday_total || 0;
+    }
+  });
+
+
+  // --- Fetch other necessary data ---
+  const [allSubscriptionsRaw, allCategories] = await Promise.all([
+    getSubscriptionsAction(), // Fetches all, then filtered in JS for complex pro-rata
     getCategoriesAction()
   ]);
 
   const categoriesMap = new Map(allCategories.map(cat => [cat.id, cat.name]));
   const subscriptionsCategoryInfo = allCategories.find(c => c.id === 'subscriptions' || c.name.toLowerCase() === 'subscriptions');
 
-
-  // --- Overall Total Spending and Daily Totals (for Line Chart) ---
-  let totalOverallSpending = 0;
-  const dailyTotalsMap = new Map<string, { rawDate: string; displayDate: string; amount: number }>();
+  // --- Initialize maps and arrays for combined data ---
+  const dailyTotalsMap = new Map<string, DailyTotalDataPoint>();
   const daysInPeriod = eachDayOfInterval({ start: reportPeriodStart, end: reportPeriodEnd });
 
   daysInPeriod.forEach(day => {
     const rawDateStr = format(day, 'yyyy-MM-dd');
     let dateFormat = "MMM d";
-    if (period === 'yearly' && daysInPeriod.length > 60) dateFormat = "MMM";
-    else if (period === 'yearly' && daysInPeriod.length <= 60) dateFormat = "MMM d";
-    else if (period === 'monthly') dateFormat = "d";
+    if (period === 'yearly' && daysInPeriod.length > 31*3) dateFormat = "MMM"; // Yearly, more than 3 months, show month only
+    else if (period === 'yearly') dateFormat = "MMM d"; // Yearly, less than 3 months, show month and day
+    else if (period === 'monthly') dateFormat = "d"; // Monthly, show day only
+    // Weekly will use MMM d by default from the first condition
 
     dailyTotalsMap.set(rawDateStr, {
       rawDate: rawDateStr,
@@ -98,51 +137,45 @@ export async function getOverallPeriodMetrics(
     });
   });
 
-  // Process Expenses for Daily Totals and Category Breakdown
-  const categoryTotals: Record<string, number> = {};
-  const weekdayExpenseTotals: number[] = Array(7).fill(0); // 0=Mon, ..., 6=Sun
-
-  allExpenses.forEach(expense => {
-    const expenseDate = parseISO(expense.date);
-    if (isWithinInterval(expenseDate, { start: reportPeriodStart, end: reportPeriodEnd })) {
-      const amountInDefault = getAmountInDefaultCurrencyForExpense(expense, defaultCurrency);
-      totalOverallSpending += amountInDefault;
-
-      const rawDateStr = format(expenseDate, 'yyyy-MM-dd');
-      if (dailyTotalsMap.has(rawDateStr)) {
-        dailyTotalsMap.get(rawDateStr)!.amount += amountInDefault;
-      }
-
-      const categoryId = expense.categoryId || 'uncategorized';
-      categoryTotals[categoryId] = (categoryTotals[categoryId] || 0) + amountInDefault;
-
-      // For weekday expense breakdown (using stored dayOfWeek: 0=Mon, ..., 6=Sun)
-      if (expense.dayOfWeek >= 0 && expense.dayOfWeek <= 6) {
-        weekdayExpenseTotals[expense.dayOfWeek] += amountInDefault;
-      }
+  // Add SQL-aggregated daily expenses to dailyTotalsMap
+  dailyExpenseTotalsFromDb.forEach(row => {
+    if (dailyTotalsMap.has(row.expense_day)) {
+      dailyTotalsMap.get(row.expense_day)!.amount += (row.daily_total || 0);
     }
   });
+  
+  // Initialize categoryTotals with SQL-aggregated expenses
+  const categoryTotals: Record<string, number> = {};
+  categoryExpenseTotalsFromDb.forEach(row => {
+    const categoryId = row.categoryId || 'uncategorized';
+    categoryTotals[categoryId] = (categoryTotals[categoryId] || 0) + (row.category_total || 0);
+  });
 
-  // Process Subscriptions for Daily Totals, Category Breakdown, and Weekday Subscription Totals
-  const weekdaySubscriptionTotals: number[] = Array(7).fill(0); // 0=Mon, ..., 6=Sun
+  // --- Process Subscriptions (JavaScript logic for pro-rating) ---
+  const weekdaySubscriptionTotals = Array(7).fill(0); // 0=Mon, ..., 6=Sun
 
-  allSubscriptions.forEach(sub => {
+  allSubscriptionsRaw.forEach(sub => {
     const monthlyAmountInDefault = getAmountInDefaultCurrencyForSubscription(sub, defaultCurrency);
+    if (isNaN(monthlyAmountInDefault)) {
+        console.warn(`Subscription ${sub.id} amount is NaN in default currency ${defaultCurrency}. Skipping.`);
+        return;
+    }
+
     const subStartDate = parseISO(sub.startDate);
     const subEndDate = sub.endDate ? parseISO(sub.endDate) : null;
 
     daysInPeriod.forEach(dayInPeriod => {
       // Check if subscription is active on this specific dayInPeriod
+      // And if this dayInPeriod is within the overall report period
       const isSubscriptionActiveToday =
-        (isEqual(dayInPeriod, subStartDate) || isAfter(dayInPeriod, subStartDate)) &&
-        (!subEndDate || isEqual(dayInPeriod, subEndDate) || isBefore(dayInPeriod, subEndDate));
+        isWithinInterval(dayInPeriod, { start: subStartDate, end: subEndDate || reportPeriodEnd }) && // Active based on sub's own dates
+        isWithinInterval(dayInPeriod, { start: reportPeriodStart, end: reportPeriodEnd }); // And within the report's window
 
       if (isSubscriptionActiveToday) {
         const daysInBillingMonth = getDaysInMonth(dayInPeriod); // Calendar month of this specific day
         const dailyContribution = daysInBillingMonth > 0 ? monthlyAmountInDefault / daysInBillingMonth : 0;
 
-        if (dailyContribution > 0) {
-          totalOverallSpending += dailyContribution;
+        if (dailyContribution > 0 && !isNaN(dailyContribution)) {
           const rawDateStr = format(dayInPeriod, 'yyyy-MM-dd');
           if (dailyTotalsMap.has(rawDateStr)) {
             dailyTotalsMap.get(rawDateStr)!.amount += dailyContribution;
@@ -153,7 +186,6 @@ export async function getOverallPeriodMetrics(
             : (subscriptionsCategoryInfo ? subscriptionsCategoryInfo.id : 'uncategorized_subscriptions');
           categoryTotals[subCategoryToUse] = (categoryTotals[subCategoryToUse] || 0) + dailyContribution;
           
-          // For weekday subscription breakdown
           const dayOfWeekFns = getDay(dayInPeriod); // 0=Sun, 1=Mon ...
           const adjustedDayIndex = dayOfWeekFns === 0 ? 6 : dayOfWeekFns - 1; // 0=Mon, ..., 6=Sun
           weekdaySubscriptionTotals[adjustedDayIndex] += dailyContribution;
@@ -161,8 +193,14 @@ export async function getOverallPeriodMetrics(
       }
     });
   });
-
-  const dailyTotalsArray = Array.from(dailyTotalsMap.values()).sort((a,b) => parseISO(a.rawDate).getTime() - parseISO(b.rawDate).getTime());
+  
+  const dailyTotalsArray = Array.from(dailyTotalsMap.values())
+    .sort((a,b) => parseISO(a.rawDate).getTime() - parseISO(b.rawDate).getTime());
+  
+  let totalOverallSpending = 0;
+  dailyTotalsArray.forEach(day => {
+    totalOverallSpending += day.amount;
+  });
 
   const categoryBreakdownArray: CategoryBreakdownPoint[] = Object.entries(categoryTotals)
     .map(([categoryId, total]) => ({
@@ -177,15 +215,22 @@ export async function getOverallPeriodMetrics(
   const weekdayOccurrences: number[] = Array(7).fill(0);
   const dailySpendingByWeekdayForErrorBar: Record<number, number[]> = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
 
-  daysInPeriod.forEach(day => {
+  daysInPeriod.forEach(day => { // Iterate through actual days in the report period
     const dayOfWeekFns = getDay(day); // 0=Sun, 1=Mon ...
     const adjustedDayIndex = dayOfWeekFns === 0 ? 6 : dayOfWeekFns - 1; // 0=Mon, ..., 6=Sun
     weekdayOccurrences[adjustedDayIndex]++;
 
     const rawDateStr = format(day, 'yyyy-MM-dd');
     const dailyTotalEntry = dailyTotalsMap.get(rawDateStr);
-    if (dailyTotalEntry && dailyTotalEntry.amount >= 0) { // Ensure amount is not NaN and include 0
+    // Ensure amount is not NaN and include 0, and that an entry exists for the day
+    if (dailyTotalEntry && typeof dailyTotalEntry.amount === 'number' && !isNaN(dailyTotalEntry.amount)) {
       dailySpendingByWeekdayForErrorBar[adjustedDayIndex].push(dailyTotalEntry.amount);
+    } else if (dailyTotalEntry && (typeof dailyTotalEntry.amount !== 'number' || isNaN(dailyTotalEntry.amount))) {
+      console.warn(`NaN amount found for rawDate ${rawDateStr} in dailyTotalsMap when building dailySpendingByWeekdayForErrorBar.`);
+      dailySpendingByWeekdayForErrorBar[adjustedDayIndex].push(0); // Push 0 if NaN
+    } else {
+       // If a day in the period somehow doesn't have a dailyTotalEntry (should not happen with current init)
+       dailySpendingByWeekdayForErrorBar[adjustedDayIndex].push(0);
     }
   });
   
@@ -193,8 +238,8 @@ export async function getOverallPeriodMetrics(
     totalOverallSpending,
     dailyTotalsArray,
     categoryBreakdownArray,
-    weekdayExpenseTotals,
-    weekdaySubscriptionTotals,
+    weekdayExpenseTotals: finalWeekdayExpenseTotals, // From SQL
+    weekdaySubscriptionTotals, // From JS processing
     weekdayOccurrences,
     dailySpendingByWeekdayForErrorBar,
   };
