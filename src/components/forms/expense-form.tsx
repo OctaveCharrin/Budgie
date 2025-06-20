@@ -31,6 +31,7 @@ import type { Expense, CurrencyCode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { SUPPORTED_CURRENCIES } from "@/lib/constants";
+import { useEffect } from "react"; // Added useEffect import
 
 const formSchema = z.object({
   date: z.date({ required_error: "Date is required." }),
