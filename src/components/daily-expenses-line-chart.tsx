@@ -182,7 +182,7 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
                     fill="hsl(var(--destructive))"
                     fontSize={10}
                     dy={-5} 
-                    dx={5} 
+                    dx={-25} 
                 />
              </ReferenceLine>
           )}
