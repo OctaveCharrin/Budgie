@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { Expense, Subscription, Category, AppSettings, CurrencyCode } from '@/lib/types';
-import { DEFAULT_SETTINGS } from '@/lib/constants'; // DEFAULT_CATEGORIES removed, DB handles initialization
+import { DEFAULT_SETTINGS, DEFAULT_CATEGORIES, DATA_FILE_PATHS } from '@/lib/constants'; // Import DEFAULT_CATEGORIES
 import {
   getCategoriesAction, addCategoryAction, updateCategoryAction, deleteCategoryAction, resetCategoriesAction,
   getExpensesAction, addExpenseAction, updateExpenseAction, deleteExpenseAction, deleteAllExpensesAction,
@@ -44,7 +44,7 @@ const DataContext = createContext<DataContextProps | undefined>(undefined);
 export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]); // Initialized as empty, DB is source of truth
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES); // Initialize with defaults, server will provide source
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -52,23 +52,21 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Initialize DB ensure tables are created and defaults seeded if necessary by actions/db.ts
-      // Then fetch all data.
+      // Categories are now from JSON, Expenses/Subs from DB, Settings from JSON
       const [fetchedCategories, fetchedExpenses, fetchedSubscriptions, fetchedSettings] = await Promise.all([
-        getCategoriesAction(),
-        getExpensesAction(),
-        getSubscriptionsAction(),
-        getSettingsAction()
+        getCategoriesAction(), // Reads from categories.json
+        getExpensesAction(),   // Reads from DB
+        getSubscriptionsAction(), // Reads from DB
+        getSettingsAction()    // Reads from settings.json
       ]);
-      setCategories(fetchedCategories); // Categories now come from DB, already seeded with defaults if DB was empty
+      setCategories(fetchedCategories);
       setExpenses(fetchedExpenses);
       setSubscriptions(fetchedSubscriptions);
       setSettings(fetchedSettings || DEFAULT_SETTINGS);
     } catch (error) {
       console.error("Failed to load data:", error);
       toast({ variant: "destructive", title: "Error Loading Data", description: "Could not load data from the server. Exchange rates or database might be an issue." });
-      // Fallback to empty or default states if loading fails catastrophically
-      setCategories([]);
+      setCategories(DEFAULT_CATEGORIES); // Fallback for categories
       setExpenses([]);
       setSubscriptions([]);
       setSettings(DEFAULT_SETTINGS);
@@ -163,10 +161,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Category context functions now operate on JSON-based server actions
   const addCategoryContext = async (categoryData: Omit<Category, 'id' | 'isDefault'>) => {
     try {
-      const newCategory = await addCategoryAction(categoryData); // Server action sets isDefault: false
-      setCategories(prev => [newCategory, ...prev].sort((a,b) => a.name.localeCompare(b.name)));
+      const newCategory = await addCategoryAction(categoryData);
+      setCategories(prev => [...prev, newCategory].sort((a,b) => a.name.localeCompare(b.name)));
     } catch (error: any) {
       console.error("Failed to add category:", error);
       toast({ variant: "destructive", title: "Error", description: `Could not add category: ${error.message}` });
@@ -206,12 +205,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const resetCategoriesContext = async (): Promise<void> => {
     try {
-      const newCategories = await resetCategoriesAction();
-      setCategories(newCategories); // these are already sorted by name ASC from the action
+      const newCategories = await resetCategoriesAction(); // Server action now writes to JSON
+      setCategories(newCategories);
     } catch (error: any) {
       console.error("Failed to reset categories:", error);
       toast({ variant: "destructive", title: "Error", description: `Could not reset categories: ${error.message}` });
-      throw error;
+      throw error; // Re-throw to indicate failure to the caller if needed
     }
   };
 
@@ -224,13 +223,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       return item.amounts[settings.defaultCurrency];
     }
     
-    // Fallback for older data structures or if amounts is somehow malformed
-    // This part might be less relevant with DB as amounts are constructed from columns
     if ('originalAmount' in item && item.originalCurrency === settings.defaultCurrency) {
         return item.originalAmount;
     }
     
-    return 0; // Should not happen if amounts are correctly populated
+    return 0; 
   };
 
 

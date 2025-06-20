@@ -2,8 +2,7 @@
 'use server';
 import fs from 'fs/promises';
 import path from 'path';
-// DEFAULT_CATEGORIES and DATA_FILE_PATHS.categories are no longer needed here for category initialization
-// as categories are now managed by the database.
+import { DEFAULT_CATEGORIES, DATA_FILE_PATHS } from '@/lib/constants'; // Import DEFAULT_CATEGORIES
 
 const dataDir = path.join(process.cwd(), 'data');
 
@@ -11,8 +10,6 @@ async function ensureDirExists() {
   try {
     await fs.access(dataDir);
   } catch {
-    // If directory doesn't exist, create it.
-    // This is also where the SQLite DB file will be stored by db.ts.
     await fs.mkdir(dataDir, { recursive: true });
   }
 }
@@ -22,9 +19,19 @@ export async function readData<T>(filename: string, defaultValue: T): Promise<T>
   const filePath = path.join(dataDir, filename);
   try {
     const fileContent = await fs.readFile(filePath, 'utf-8');
-    return JSON.parse(fileContent) as T;
+    const jsonData = JSON.parse(fileContent);
+    // Special handling for categories.json to ensure it's initialized if empty or missing
+    if (filename === DATA_FILE_PATHS.categories && (!jsonData || (Array.isArray(jsonData) && jsonData.length === 0))) {
+        await writeData(filename, DEFAULT_CATEGORIES as unknown as T);
+        return DEFAULT_CATEGORIES as unknown as T;
+    }
+    return jsonData as T;
   } catch (error) {
     // If file doesn't exist or is invalid, write the default value and return it
+    if (filename === DATA_FILE_PATHS.categories) {
+      await writeData(filename, DEFAULT_CATEGORIES as unknown as T);
+      return DEFAULT_CATEGORIES as unknown as T;
+    }
     await writeData(filename, defaultValue);
     return defaultValue;
   }

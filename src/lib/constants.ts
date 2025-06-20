@@ -18,6 +18,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
 
 export const DATA_FILE_PATHS = {
   settings: 'settings.json',
+  categories: 'categories.json', // Restored for JSON-based category management
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -26,3 +27,4 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 // Re-export SUPPORTED_CURRENCIES for easier import elsewhere
 export { SUPPORTED_CURRENCIES };
+

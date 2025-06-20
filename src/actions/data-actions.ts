@@ -48,54 +48,47 @@ export async function updateSettingsAction(updatedSettings: AppSettings): Promis
   return updatedSettings;
 }
 
-// Category Actions
+// Category Actions (now JSON-based)
 export async function getCategoriesAction(): Promise<Category[]> {
-  const db = await getDb();
-  const categories = await db.all<Category[]>('SELECT id, name, icon, isDefault FROM categories ORDER BY name ASC');
-  return categories.map(c => ({ ...c, isDefault: Boolean(c.isDefault) }));
+  const categories = await readData<Category[]>(DATA_FILE_PATHS.categories, DEFAULT_CATEGORIES);
+  // Ensure categories are sorted by name by default if needed, or do it client-side
+  return categories.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function addCategoryAction(categoryData: Omit<Category, 'id' | 'isDefault'>): Promise<Category> {
-  const db = await getDb();
+  const categories = await getCategoriesAction();
+  if (categories.some(cat => cat.name.toLowerCase() === categoryData.name.toLowerCase())) {
+    throw new Error(`Category with name "${categoryData.name}" already exists.`);
+  }
   const newCategory: Category = {
     id: generateId(),
     name: categoryData.name,
     icon: categoryData.icon,
-    isDefault: false,
+    isDefault: false, // New custom categories are not default
   };
-  try {
-    await db.run(
-      'INSERT INTO categories (id, name, icon, isDefault) VALUES ($id, $name, $icon, $isDefault)',
-      { $id: newCategory.id, $name: newCategory.name, $icon: newCategory.icon, $isDefault: newCategory.isDefault ? 1: 0 }
-    );
-    return newCategory;
-  } catch (error: any) {
-    if (error.code === 'SQLITE_CONSTRAINT' && error.message.includes('UNIQUE constraint failed: categories.name')) {
-      throw new Error(`Category with name "${newCategory.name}" already exists.`);
-    }
-    throw error;
-  }
+  const updatedCategories = [...categories, newCategory].sort((a, b) => a.name.localeCompare(b.name));
+  await writeData(DATA_FILE_PATHS.categories, updatedCategories);
+  return newCategory;
 }
 
 export async function updateCategoryAction(updatedCategory: Category): Promise<Category> {
-  const db = await getDb();
-  try {
-    await db.run(
-      'UPDATE categories SET name = $name, icon = $icon, isDefault = $isDefault WHERE id = $id',
-      { $name: updatedCategory.name, $icon: updatedCategory.icon, $isDefault: updatedCategory.isDefault ? 1 : 0, $id: updatedCategory.id }
-    );
-    return updatedCategory;
-  } catch (error: any) {
-     if (error.code === 'SQLITE_CONSTRAINT' && error.message.includes('UNIQUE constraint failed: categories.name')) {
-      throw new Error(`Cannot update category: name "${updatedCategory.name}" is already in use by another category.`);
-    }
-    throw error;
+  let categories = await getCategoriesAction();
+  const existingCategoryWithSameName = categories.find(
+    cat => cat.name.toLowerCase() === updatedCategory.name.toLowerCase() && cat.id !== updatedCategory.id
+  );
+  if (existingCategoryWithSameName) {
+    throw new Error(`Cannot update category: name "${updatedCategory.name}" is already in use by another category.`);
   }
+  
+  categories = categories.map(cat => cat.id === updatedCategory.id ? updatedCategory : cat)
+                         .sort((a, b) => a.name.localeCompare(b.name));
+  await writeData(DATA_FILE_PATHS.categories, categories);
+  return updatedCategory;
 }
 
 export async function deleteCategoryAction(id: string): Promise<{ success: boolean; message?: string }> {
-  const db = await getDb();
-  const categoryToDelete = await db.get<Category>('SELECT id, name, isDefault FROM categories WHERE id = ?', id);
+  const categories = await getCategoriesAction();
+  const categoryToDelete = categories.find(cat => cat.id === id);
 
   if (!categoryToDelete) {
     return { success: false, message: "Category not found." };
@@ -104,6 +97,7 @@ export async function deleteCategoryAction(id: string): Promise<{ success: boole
     return { success: false, message: "Default categories cannot be deleted." };
   }
 
+  const db = await getDb();
   const expenseCount = await db.get('SELECT COUNT(*) as count FROM expenses WHERE categoryId = ?', id);
   if (expenseCount && expenseCount.count > 0) {
     return { success: false, message: `Category "${categoryToDelete.name}" is in use by expenses and cannot be deleted.` };
@@ -114,27 +108,19 @@ export async function deleteCategoryAction(id: string): Promise<{ success: boole
     return { success: false, message: `Category "${categoryToDelete.name}" is in use by subscriptions and cannot be deleted.` };
   }
 
-  await db.run('DELETE FROM categories WHERE id = ?', id);
+  const updatedCategories = categories.filter(cat => cat.id !== id);
+  await writeData(DATA_FILE_PATHS.categories, updatedCategories);
   return { success: true };
 }
 
 export async function resetCategoriesAction(): Promise<Category[]> {
-  const db = await getDb();
-  // Delete all non-default (custom) categories first
-  await db.run('DELETE FROM categories WHERE isDefault = 0');
-  
-  // Then, insert or replace default categories to ensure they are up-to-date
-  // This also adds them if they were somehow deleted or are missing
-  const stmt = await db.prepare('INSERT OR REPLACE INTO categories (id, name, icon, isDefault) VALUES (?, ?, ?, ?)');
-  for (const category of DEFAULT_CATEGORIES) {
-    await stmt.run(category.id, category.name, category.icon, 1); // isDefault is true (1)
-  }
-  await stmt.finalize();
-  
-  return getCategoriesAction(); // Fetch and return the current state of categories
+  // DEFAULT_CATEGORIES are already sorted by name if needed, or sort them here
+  const sortedDefaultCategories = [...DEFAULT_CATEGORIES].sort((a,b) => a.name.localeCompare(b.name));
+  await writeData(DATA_FILE_PATHS.categories, sortedDefaultCategories);
+  return sortedDefaultCategories;
 }
 
-// Expense Actions
+// Expense Actions (remain DB-based)
 export async function getExpensesAction(): Promise<Expense[]> {
   const db = await getDb();
   const rows = await db.all(`SELECT id, date, categoryId, originalAmount, originalCurrency, ${amountDbColumns}, description FROM expenses ORDER BY date DESC`);
@@ -220,7 +206,7 @@ export async function deleteAllExpensesAction(): Promise<{ success: boolean }> {
   return { success: true };
 }
 
-// Subscription Actions
+// Subscription Actions (remain DB-based)
 export async function getSubscriptionsAction(): Promise<Subscription[]> {
   const db = await getDb();
   const rows = await db.all(`SELECT id, name, categoryId, originalAmount, originalCurrency, ${amountDbColumns}, startDate, endDate, description FROM subscriptions ORDER BY name ASC`);
@@ -313,4 +299,3 @@ export async function deleteSubscriptionAction(id: string): Promise<{ success: b
   await db.run('DELETE FROM subscriptions WHERE id = ?', id);
   return { success: true };
 }
-
