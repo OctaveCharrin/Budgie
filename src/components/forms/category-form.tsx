@@ -14,12 +14,23 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useData } from "@/contexts/data-context";
 import type { Category } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
+import * as LucideIcons from 'lucide-react';
+import { IconDisplay } from "@/components/icon-display";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const formSchema = z.object({
   name: z.string().min(1, "Category name is required."),
+  icon: z.string().min(1, "Icon is required."),
 });
 
 type CategoryFormValues = z.infer<typeof formSchema>;
@@ -29,27 +40,39 @@ interface CategoryFormProps {
   onSave: () => void;
 }
 
+const lucideIconNames = Object.keys(LucideIcons)
+  .filter(
+    (key) =>
+      typeof (LucideIcons as any)[key] === 'function' &&
+      key[0] === key[0]?.toUpperCase() && 
+      key !== 'createLucideIcon' &&
+      key !== 'LucideIcon' &&
+      key !== 'IconNode' &&
+      key !== 'default' // Exclude default export if any
+  )
+  .sort();
+
 export function CategoryForm({ category, onSave }: CategoryFormProps) {
   const { addCategory, updateCategory } = useData();
   const { toast } = useToast();
 
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: category ? { name: category.name } : { name: "" },
+    defaultValues: category
+      ? { name: category.name, icon: category.icon }
+      : { name: "", icon: "DollarSign" },
   });
 
   function onSubmit(values: CategoryFormValues) {
     if (category) {
-      // Preserve existing icon when updating
-      updateCategory({ ...values, id: category.id, icon: category.icon });
+      updateCategory({ ...category, ...values }); // values now include name and icon
       toast({ title: "Category Updated", description: "Category has been successfully updated." });
     } else {
-      // Assign DollarSign icon for new categories
-      addCategory({ ...values, icon: "DollarSign" });
+      addCategory({ name: values.name, icon: values.icon || "DollarSign" });
       toast({ title: "Category Added", description: "New category has been successfully added." });
     }
     onSave();
-    form.reset({ name: "" });
+    form.reset({ name: "", icon: "DollarSign" });
   }
 
   return (
@@ -64,6 +87,39 @@ export function CategoryForm({ category, onSave }: CategoryFormProps) {
               <FormControl>
                 <Input placeholder="e.g., Groceries" {...field} />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="icon"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Icon</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <div className="flex items-center gap-2">
+                      {field.value && <IconDisplay name={field.value} className="h-4 w-4" />}
+                      <SelectValue placeholder="Select an icon" />
+                    </div>
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <ScrollArea className="h-[200px]">
+                    {lucideIconNames.map((iconName) => (
+                      <SelectItem key={iconName} value={iconName}>
+                        <div className="flex items-center gap-2">
+                          <IconDisplay name={iconName} className="h-4 w-4" />
+                          {iconName}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </ScrollArea>
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}

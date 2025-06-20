@@ -26,7 +26,7 @@ interface DataContextProps {
   deleteSubscription: (id: string) => Promise<void>;
   categories: Category[];
   setCategories: (categories: Category[] | ((val: Category[]) => Category[])) => void; // Keep for local optimistic updates
-  addCategory: (category: Omit<Category, 'id' | 'icon'>) => Promise<void>;
+  addCategory: (category: Omit<Category, 'id'>) => Promise<void>; // Icon is now part of this
   updateCategory: (category: Category) => Promise<void>;
   deleteCategory: (id: string) => Promise<boolean>;
   getCategoryById: (id: string) => Category | undefined;
@@ -130,7 +130,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   
-  const addCategory = async (categoryData: Omit<Category, 'id' | 'icon'>) => {
+  const addCategory = async (categoryData: Omit<Category, 'id'>) => { // Parameter now Omit<Category, 'id'>
     try {
       const newCategory = await addCategoryAction(categoryData);
       setCategories(prev => [newCategory, ...prev]);
@@ -186,3 +186,4 @@ export const useData = (): DataContextProps => {
   }
   return context;
 };
+

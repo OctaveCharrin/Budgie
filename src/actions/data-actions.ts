@@ -1,3 +1,4 @@
+
 'use server';
 
 import { readData, writeData } from '@/lib/file-service';
@@ -11,12 +12,12 @@ export async function getCategoriesAction(): Promise<Category[]> {
   return readData<Category[]>(DATA_FILE_PATHS.categories, DEFAULT_CATEGORIES);
 }
 
-export async function addCategoryAction(categoryData: Omit<Category, 'id' | 'icon'>): Promise<Category> {
+export async function addCategoryAction(categoryData: Omit<Category, 'id'>): Promise<Category> {
   const categories = await getCategoriesAction();
   const newCategory: Category = {
-    ...categoryData,
     id: generateId(),
-    icon: 'DollarSign', // New categories default to DollarSign
+    name: categoryData.name,
+    icon: categoryData.icon, // Icon is now provided from the form
   };
   categories.push(newCategory);
   await writeData(DATA_FILE_PATHS.categories, categories);
@@ -25,7 +26,8 @@ export async function addCategoryAction(categoryData: Omit<Category, 'id' | 'ico
 
 export async function updateCategoryAction(updatedCategory: Category): Promise<Category> {
   let categories = await getCategoriesAction();
-  categories = categories.map(cat => cat.id === updatedCategory.id ? { ...updatedCategory, icon: cat.icon } : cat); // Preserve original icon
+  // Now updates the entire category object, including the icon if changed
+  categories = categories.map(cat => cat.id === updatedCategory.id ? updatedCategory : cat);
   await writeData(DATA_FILE_PATHS.categories, categories);
   return updatedCategory;
 }
