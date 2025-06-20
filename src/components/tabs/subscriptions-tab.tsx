@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -12,13 +13,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+const SELECT_ALL_CATEGORIES_VALUE = "__ALL_CATEGORIES__";
+
 export function SubscriptionsTab() {
   const { subscriptions, categories, getCategoryById } = useData();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState<Subscription | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOrder, setSortOrder] = useState<"name-asc" | "name-desc" | "amount-desc" | "amount-asc">("name-asc");
-  const [filterCategory, setFilterCategory] = useState<string>("");
+  const [filterCategory, setFilterCategory] = useState<string>(SELECT_ALL_CATEGORIES_VALUE);
 
   const handleEdit = (subscription: Subscription) => {
     setEditingSubscription(subscription);
@@ -36,7 +39,7 @@ export function SubscriptionsTab() {
       const nameMatch = sub.name.toLowerCase().includes(searchTerm.toLowerCase());
       const categoryNameMatch = category?.name.toLowerCase().includes(searchTerm.toLowerCase());
       const searchMatch = searchTerm === "" || nameMatch || categoryNameMatch;
-      const categoryFilterMatch = filterCategory === "" || sub.categoryId === filterCategory;
+      const categoryFilterMatch = filterCategory === SELECT_ALL_CATEGORIES_VALUE || sub.categoryId === filterCategory;
       return searchMatch && categoryFilterMatch;
     })
     .sort((a, b) => {
@@ -82,7 +85,7 @@ export function SubscriptionsTab() {
             <SelectValue placeholder="Filter by category" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Categories</SelectItem>
+            <SelectItem value={SELECT_ALL_CATEGORIES_VALUE}>All Categories</SelectItem>
             {categories.map(cat => (
               <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
             ))}

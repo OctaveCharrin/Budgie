@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -13,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, parseISO } from "date-fns";
 
+const SELECT_ALL_CATEGORIES_VALUE = "__ALL_CATEGORIES__";
 
 export function ExpensesTab() {
   const { expenses, categories, getCategoryById } = useData();
@@ -20,7 +22,7 @@ export function ExpensesTab() {
   const [editingExpense, setEditingExpense] = useState<Expense | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOrder, setSortOrder] = useState<"date-desc" | "date-asc" | "amount-desc" | "amount-asc">("date-desc");
-  const [filterCategory, setFilterCategory] = useState<string>("");
+  const [filterCategory, setFilterCategory] = useState<string>(SELECT_ALL_CATEGORIES_VALUE);
 
 
   const handleEdit = (expense: Expense) => {
@@ -37,10 +39,10 @@ export function ExpensesTab() {
     .filter(expense => {
       const category = getCategoryById(expense.categoryId);
       const descriptionMatch = expense.description?.toLowerCase().includes(searchTerm.toLowerCase());
-      const categoryMatch = category?.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const categoryNameMatch = category?.name.toLowerCase().includes(searchTerm.toLowerCase());
       const amountMatch = expense.amount.toString().includes(searchTerm);
-      const searchMatch = searchTerm === "" || descriptionMatch || categoryMatch || amountMatch;
-      const categoryFilterMatch = filterCategory === "" || expense.categoryId === filterCategory;
+      const searchMatch = searchTerm === "" || descriptionMatch || categoryNameMatch || amountMatch;
+      const categoryFilterMatch = filterCategory === SELECT_ALL_CATEGORIES_VALUE || expense.categoryId === filterCategory;
       return searchMatch && categoryFilterMatch;
     })
     .sort((a, b) => {
@@ -85,7 +87,7 @@ export function ExpensesTab() {
             <SelectValue placeholder="Filter by category" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Categories</SelectItem>
+            <SelectItem value={SELECT_ALL_CATEGORIES_VALUE}>All Categories</SelectItem>
             {categories.map(cat => (
               <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
             ))}
