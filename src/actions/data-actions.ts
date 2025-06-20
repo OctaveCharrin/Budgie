@@ -17,7 +17,7 @@ export async function addCategoryAction(categoryData: Omit<Category, 'id'>): Pro
   const newCategory: Category = {
     id: generateId(),
     name: categoryData.name,
-    icon: categoryData.icon, // Icon is now provided from the form
+    icon: categoryData.icon,
   };
   categories.push(newCategory);
   await writeData(DATA_FILE_PATHS.categories, categories);
@@ -26,7 +26,6 @@ export async function addCategoryAction(categoryData: Omit<Category, 'id'>): Pro
 
 export async function updateCategoryAction(updatedCategory: Category): Promise<Category> {
   let categories = await getCategoriesAction();
-  // Now updates the entire category object, including the icon if changed
   categories = categories.map(cat => cat.id === updatedCategory.id ? updatedCategory : cat);
   await writeData(DATA_FILE_PATHS.categories, categories);
   return updatedCategory;
@@ -34,17 +33,11 @@ export async function updateCategoryAction(updatedCategory: Category): Promise<C
 
 export async function deleteCategoryAction(id: string): Promise<{ success: boolean }> {
   let categories = await getCategoriesAction();
-  const expenses = await getExpensesAction();
-  const subscriptions = await getSubscriptionsAction();
-
-  const isCategoryInUse = expenses.some(exp => exp.categoryId === id) || subscriptions.some(sub => sub.categoryId === id);
-  if (isCategoryInUse) {
-    return { success: false };
-  }
-
+  // No longer check if category is in use, allow deletion.
+  // Expenses/subscriptions referencing this category will be handled at display time.
   categories = categories.filter(cat => cat.id !== id);
   await writeData(DATA_FILE_PATHS.categories, categories);
-  return { success: true };
+  return { success: true }; // Always success if no error occurs during file write
 }
 
 // Expense Actions
@@ -58,7 +51,7 @@ export async function addExpenseAction(expenseData: Omit<Expense, 'id'>): Promis
     ...expenseData,
     id: generateId(),
   };
-  expenses.unshift(newExpense); // Add to the beginning for chronological order in some views
+  expenses.unshift(newExpense);
   await writeData(DATA_FILE_PATHS.expenses, expenses);
   return newExpense;
 }
@@ -74,6 +67,11 @@ export async function deleteExpenseAction(id: string): Promise<{ success: boolea
   let expenses = await getExpensesAction();
   expenses = expenses.filter(exp => exp.id !== id);
   await writeData(DATA_FILE_PATHS.expenses, expenses);
+  return { success: true };
+}
+
+export async function deleteAllExpensesAction(): Promise<{ success: boolean }> {
+  await writeData<Expense[]>(DATA_FILE_PATHS.expenses, []);
   return { success: true };
 }
 

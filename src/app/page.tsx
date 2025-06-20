@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppHeader } from "@/components/app-header";
@@ -5,9 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardTab } from "@/components/tabs/dashboard-tab";
 import { ExpensesTab } from "@/components/tabs/expenses-tab";
 import { SubscriptionsTab } from "@/components/tabs/subscriptions-tab";
-import { CategoriesTab } from "@/components/tabs/categories-tab";
 import { ReportsTab } from "@/components/tabs/reports-tab";
-import { LayoutDashboard, ListChecks, Repeat, Shapes, BarChartHorizontalBig } from "lucide-react";
+import { SettingsTab } from "@/components/tabs/settings-tab"; // New SettingsTab
+import { LayoutDashboard, ListChecks, Repeat, BarChartHorizontalBig, Settings } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -25,11 +26,11 @@ export default function HomePage() {
             <TabsTrigger value="subscriptions" className="flex-col sm:flex-row h-auto py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Repeat className="h-5 w-5 mb-1 sm:mb-0 sm:mr-2" /> Subscriptions
             </TabsTrigger>
-            <TabsTrigger value="categories" className="flex-col sm:flex-row h-auto py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <Shapes className="h-5 w-5 mb-1 sm:mb-0 sm:mr-2" /> Categories
-            </TabsTrigger>
-            <TabsTrigger value="reports" className="flex-col sm:flex-row h-auto py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground col-span-2 sm:col-span-1">
+            <TabsTrigger value="reports" className="flex-col sm:flex-row h-auto py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <BarChartHorizontalBig className="h-5 w-5 mb-1 sm:mb-0 sm:mr-2" /> Reports
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="flex-col sm:flex-row h-auto py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground col-span-2 sm:col-span-1 md:col-span-1">
+              <Settings className="h-5 w-5 mb-1 sm:mb-0 sm:mr-2" /> Settings
             </TabsTrigger>
           </TabsList>
 
@@ -42,11 +43,11 @@ export default function HomePage() {
           <TabsContent value="subscriptions">
             <SubscriptionsTab />
           </TabsContent>
-          <TabsContent value="categories">
-            <CategoriesTab />
-          </TabsContent>
           <TabsContent value="reports">
             <ReportsTab />
+          </TabsContent>
+          <TabsContent value="settings">
+            <SettingsTab />
           </TabsContent>
         </Tabs>
       </main>

@@ -1,6 +1,11 @@
 
 "use client";
 
+// This file is no longer directly used in page.tsx.
+// Its functionality has been moved to src/components/tabs/settings-tab.tsx
+// Keeping the file for now to avoid breaking imports if it were referenced elsewhere,
+// but its content is effectively deprecated in favor of the Settings tab.
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
@@ -46,7 +51,7 @@ export function CategoriesTab() {
   return (
     <div className="space-y-6 p-1">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold font-headline">Manage Categories</h2>
+        <h2 className="text-2xl font-semibold font-headline">Manage Categories (Legacy Tab Content)</h2>
         <Dialog open={isDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) closeDialogAndReset(); else setIsDialogOpen(true); }}>
           <DialogTrigger asChild>
             <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">

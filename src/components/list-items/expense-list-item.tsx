@@ -1,7 +1,8 @@
+
 "use client";
 
 import { format } from "date-fns";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, HelpCircle } from "lucide-react"; // Added HelpCircle
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useData } from "@/contexts/data-context";
@@ -30,6 +31,9 @@ export function ExpenseListItem({ expense, onEdit }: ExpenseListItemProps) {
   const { toast } = useToast();
   const category = getCategoryById(expense.categoryId);
 
+  const categoryName = category?.name || "Uncategorized";
+  const categoryIcon = category?.icon || "HelpCircle"; // Fallback to HelpCircle icon
+
   const handleDelete = () => {
     deleteExpense(expense.id);
     toast({ title: "Expense Deleted", description: "The expense has been successfully deleted." });
@@ -41,8 +45,8 @@ export function ExpenseListItem({ expense, onEdit }: ExpenseListItemProps) {
         <div className="flex justify-between items-start">
           <div>
             <CardTitle className="text-lg flex items-center">
-              {category && <IconDisplay name={category.icon} className="mr-2 h-5 w-5 text-primary" />}
-              {category?.name || "Uncategorized"}
+              <IconDisplay name={categoryIcon} className="mr-2 h-5 w-5 text-primary" />
+              {categoryName}
             </CardTitle>
             <p className="text-xs text-muted-foreground">{format(new Date(expense.date), "PPP")}</p>
           </div>

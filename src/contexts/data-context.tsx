@@ -7,7 +7,7 @@ import type { Expense, Subscription, Category } from '@/lib/types';
 import { DEFAULT_CATEGORIES } from '@/lib/constants';
 import {
   getCategoriesAction, addCategoryAction, updateCategoryAction, deleteCategoryAction,
-  getExpensesAction, addExpenseAction, updateExpenseAction, deleteExpenseAction,
+  getExpensesAction, addExpenseAction, updateExpenseAction, deleteExpenseAction, deleteAllExpensesAction,
   getSubscriptionsAction, addSubscriptionAction, updateSubscriptionAction, deleteSubscriptionAction
 } from '@/actions/data-actions';
 import { useToast } from "@/hooks/use-toast";
@@ -15,20 +15,21 @@ import { useToast } from "@/hooks/use-toast";
 
 interface DataContextProps {
   expenses: Expense[];
-  setExpenses: (expenses: Expense[] | ((val: Expense[]) => Expense[])) => void; // Keep for local optimistic updates
+  setExpenses: (expenses: Expense[] | ((val: Expense[]) => Expense[])) => void;
   addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>;
   updateExpense: (expense: Expense) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
+  deleteAllExpenses: () => Promise<void>;
   subscriptions: Subscription[];
-  setSubscriptions: (subscriptions: Subscription[] | ((val: Subscription[]) => Subscription[])) => void; // Keep for local optimistic updates
+  setSubscriptions: (subscriptions: Subscription[] | ((val: Subscription[]) => Subscription[])) => void;
   addSubscription: (subscription: Omit<Subscription, 'id'>) => Promise<void>;
   updateSubscription: (subscription: Subscription) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   categories: Category[];
-  setCategories: (categories: Category[] | ((val: Category[]) => Category[])) => void; // Keep for local optimistic updates
-  addCategory: (category: Omit<Category, 'id'>) => Promise<void>; // Icon is now part of this
+  setCategories: (categories: Category[] | ((val: Category[]) => Category[])) => void;
+  addCategory: (category: Omit<Category, 'id'>) => Promise<void>;
   updateCategory: (category: Category) => Promise<void>;
-  deleteCategory: (id: string) => Promise<boolean>;
+  deleteCategory: (id: string) => Promise<void>; // Returns void now, success/failure handled by toast
   getCategoryById: (id: string) => Category | undefined;
   isLoading: boolean;
 }
@@ -56,7 +57,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Failed to load data:", error);
       toast({ variant: "destructive", title: "Error Loading Data", description: "Could not load data from the server." });
-      // Fallback to defaults if server fails
       setCategories(DEFAULT_CATEGORIES);
       setExpenses([]);
       setSubscriptions([]);
@@ -99,6 +99,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       toast({ variant: "destructive", title: "Error", description: "Could not delete expense." });
     }
   };
+  
+  const deleteAllExpenses = async () => {
+    try {
+      await deleteAllExpensesAction();
+      setExpenses([]); // Clear local state
+    } catch (error) {
+      console.error("Failed to delete all expenses:", error);
+      toast({ variant: "destructive", title: "Error", description: "Could not delete all expenses." });
+      throw error; // Re-throw to be caught by caller if needed
+    }
+  };
 
   const addSubscription = async (subscriptionData: Omit<Subscription, 'id'>) => {
     try {
@@ -130,7 +141,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   
-  const addCategory = async (categoryData: Omit<Category, 'id'>) => { // Parameter now Omit<Category, 'id'>
+  const addCategory = async (categoryData: Omit<Category, 'id'>) => {
     try {
       const newCategory = await addCategoryAction(categoryData);
       setCategories(prev => [newCategory, ...prev]);
@@ -150,17 +161,19 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const deleteCategory = async (id: string): Promise<boolean> => {
+  const deleteCategory = async (id: string): Promise<void> => {
     try {
       const { success } = await deleteCategoryAction(id);
       if (success) {
         setCategories(prev => prev.filter(cat => cat.id !== id));
+        // No need to update expenses/subscriptions here, display logic handles uncategorized items
+      } else {
+        // This case should ideally not be hit if action always returns true or throws
+        toast({ variant: "destructive", title: "Deletion Failed", description: "Category could not be deleted." });
       }
-      return success;
     } catch (error) {
       console.error("Failed to delete category:", error);
       toast({ variant: "destructive", title: "Error", description: "Could not delete category." });
-      return false;
     }
   };
   
@@ -168,7 +181,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <DataContext.Provider value={{
-      expenses, setExpenses, addExpense, updateExpense, deleteExpense,
+      expenses, setExpenses, addExpense, updateExpense, deleteExpense, deleteAllExpenses,
       subscriptions, setSubscriptions, addSubscription, updateSubscription, deleteSubscription,
       categories, setCategories, addCategory, updateCategory, deleteCategory,
       getCategoryById,
@@ -186,4 +199,3 @@ export const useData = (): DataContextProps => {
   }
   return context;
 };
-
