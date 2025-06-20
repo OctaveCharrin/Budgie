@@ -1,9 +1,10 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, TrendingUp, TrendingDown, Wallet } from "lucide-react";
+import { PlusCircle, TrendingUp, Wallet } from "lucide-react";
 import { useData } from "@/contexts/data-context";
 import { ExpenseForm } from "@/components/forms/expense-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -110,12 +111,12 @@ export function DashboardTab() {
             <p className="text-xs text-muted-foreground">{subscriptions.length} active subscriptions</p>
           </CardContent>
         </Card>
-         <Card className="lg:col-span-1 md:col-span-2 flex flex-col items-center justify-center p-6 bg-accent text-accent-foreground shadow-lg">
+        <div className="lg:col-span-1 md:col-span-2 flex items-center justify-center p-6">
            <Dialog open={isAddExpenseOpen} onOpenChange={(isOpen) => {
              if (!isOpen) closeDialogAndReset(); else setIsAddExpenseOpen(true);
            }}>
             <DialogTrigger asChild>
-              <Button size="lg" className="w-full h-full text-lg bg-primary hover:bg-primary/90 text-primary-foreground border-2 border-primary-foreground/30 hover:border-primary-foreground/50">
+              <Button size="lg" className="w-full text-lg bg-accent hover:bg-accent/90 text-accent-foreground border-2 border-accent-foreground/30 hover:border-accent-foreground/50">
                 <PlusCircle className="mr-2 h-6 w-6" /> Add New Expense
               </Button>
             </DialogTrigger>
@@ -126,7 +127,7 @@ export function DashboardTab() {
               <ExpenseForm expense={editingExpense} onSave={closeDialogAndReset} />
             </DialogContent>
           </Dialog>
-        </Card>
+        </div>
       </div>
 
       <div>
@@ -154,3 +155,4 @@ function addYears(date: Date, years: number): Date {
   newDate.setFullYear(newDate.getFullYear() + years);
   return newDate;
 }
+
