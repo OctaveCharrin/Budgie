@@ -1,5 +1,19 @@
 [
   {
+    "id": "04838423-9727-45ee-b7ea-685fd2320d81",
+    "date": "2025-06-20T04:42:32.025Z",
+    "categoryId": "bar",
+    "originalAmount": 19,
+    "originalCurrency": "EUR",
+    "amounts": {
+      "USD": 21.8367,
+      "EUR": 19,
+      "JPY": 3174.216,
+      "CHF": 17.846700000000002
+    },
+    "description": ""
+  },
+  {
     "id": "8e0a4421-94fe-4dde-94e9-346775f6e30b",
     "date": "2025-06-20T04:22:30.699Z",
     "categoryId": "transportation",

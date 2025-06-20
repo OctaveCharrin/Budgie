@@ -17,18 +17,23 @@ import {
 } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
-import { BarChartHorizontalBig, PieChart as PieChartIcon } from "lucide-react"; // Updated Icon
+import { PieChart as PieChartIcon } from "lucide-react"; // Updated Icon
 
 const COLORS = [
-  'hsl(var(--chart-1))',
-  'hsl(var(--chart-2))',
-  'hsl(var(--chart-3))',
-  'hsl(var(--chart-4))',
-  'hsl(var(--chart-5))',
-  'hsl(var(--primary))', 
-  'hsl(var(--secondary))',
-  'hsl(var(--accent))',
+  '#FF6384', // Pinkish Red
+  '#36A2EB', // Sky Blue
+  '#FFCE56', // Light Yellow
+  '#4BC0C0', // Teal
+  '#9966FF', // Lavender
+  '#FF9F40', // Orange
+  '#8AC926', // Lime Green
+  '#E76F51', // Burnt Sienna
+  '#F4A261', // Sandy Brown
+  '#2A9D8F', // Jungle Green
+  '#6A0DAD', // Purple
+  '#0077B6', // Dark Cerulean
 ];
+
 
 interface ReportChartProps {
   period: ReportPeriod;
@@ -233,7 +238,7 @@ export function ReportChart({ period, date }: ReportChartProps) {
                 cy="50%"
                 labelLine={false}
                 outerRadius={120}
-                fill="#8884d8"
+                fill="#8884d8" // Default fill, overridden by Cell
                 dataKey="value"
                 nameKey="name"
                 label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name }) => {
@@ -275,3 +280,4 @@ export function ReportChart({ period, date }: ReportChartProps) {
     </Card>
   );
 }
+
