@@ -12,7 +12,7 @@ import { LayoutDashboard, ListChecks, Repeat, BarChartHorizontalBig, Settings } 
 
 export default function HomePage() {
   return (
-    <div className="flex flex-col min-h-screen bg-background mx-auto max-w-3/4">
+    <div className="flex flex-col min-h-screen bg-background mx-auto max-w-[70%]">
       <AppHeader />
       <main className="flex-grow px-4 py-6"> {/* Removed 'container' and 'mx-auto' */}
         <Tabs defaultValue="dashboard" className="w-full">
