@@ -241,6 +241,7 @@ export function ReportChart({ period, date }: ReportChartProps) {
                 fill="#8884d8" // Default fill, overridden by Cell
                 dataKey="value"
                 nameKey="name"
+                animationDuration={500}
                 label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name }) => {
                   const RADIAN = Math.PI / 180;
                   const radius = innerRadius + (outerRadius - innerRadius) * 0.5;

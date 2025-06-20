@@ -158,6 +158,7 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
             dot={{ r: 3, fill: 'hsl(var(--primary))' }}
             activeDot={{ r: 5 }}
             name={accumulate ? "Accumulated Spending" : "Daily Spending"}
+            animationDuration={500}
           />
         </LineChart>
       </ResponsiveContainer>
