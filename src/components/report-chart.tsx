@@ -17,6 +17,7 @@ import {
 } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
+import { BarChartHorizontalBig, PieChart as PieChartIcon } from "lucide-react"; // Updated Icon
 
 const COLORS = [
   'hsl(var(--chart-1))',
@@ -24,6 +25,9 @@ const COLORS = [
   'hsl(var(--chart-3))',
   'hsl(var(--chart-4))',
   'hsl(var(--chart-5))',
+  'hsl(var(--primary))', 
+  'hsl(var(--secondary))',
+  'hsl(var(--accent))',
 ];
 
 interface ReportChartProps {
@@ -50,6 +54,7 @@ export function ReportChart({ period, date }: ReportChartProps) {
         reportPeriodEnd = endOfMonth(date);
         break;
       case 'yearly':
+      default: // Default to yearly if period is unexpected, though UI should prevent this.
         reportPeriodStart = startOfYear(date);
         reportPeriodEnd = endOfYear(date);
         break;
@@ -64,7 +69,10 @@ export function ReportChart({ period, date }: ReportChartProps) {
       }
     });
     
-    const subscriptionsCategoryId = categories.find(c => c.name.toLowerCase() === 'subscriptions')?.id || 'subscriptions_placeholder_id';
+    // Ensure 'subscriptions' category exists or handle its absence gracefully
+    const subscriptionsCategoryInfo = categories.find(c => c.id === 'subscriptions' || c.name.toLowerCase() === 'subscriptions');
+    const subscriptionsCategoryId = subscriptionsCategoryInfo ? subscriptionsCategoryInfo.id : 'uncategorized_subscriptions'; // Fallback ID
+    const subscriptionsCategoryName = subscriptionsCategoryInfo ? subscriptionsCategoryInfo.name : 'Subscriptions (Uncategorized)'; // Fallback Name
     
     subscriptions.forEach(sub => {
       const subStartDate = parseISO(sub.startDate);
@@ -72,7 +80,7 @@ export function ReportChart({ period, date }: ReportChartProps) {
       let subContribution = 0;
       const monthlyAmountInDefault = getAmountInDefaultCurrency(sub);
 
-      if (isAfter(subStartDate, reportPeriodEnd)) return; 
+      if (isAfter(subStartDate, reportPeriodEnd) && !isEqual(subStartDate, reportPeriodEnd)) return; 
 
       if (period === 'monthly') {
         const isActiveInMonth = 
@@ -93,9 +101,9 @@ export function ReportChart({ period, date }: ReportChartProps) {
              subContribution += monthlyAmountInDefault;
           }
         });
-      } else { 
+      } else { // weekly
         const billingMonthForWeekStart = startOfMonth(reportPeriodStart); 
-        const billingMonthForWeekEnd = endOfMonth(reportPeriodStart);
+        const billingMonthForWeekEnd = endOfMonth(reportPeriodStart); // This should be end of the month reportPeriodStart is in.
 
         const isActiveInBillingMonth =
           (isEqual(subStartDate, billingMonthForWeekEnd) || isBefore(subStartDate, billingMonthForWeekEnd)) &&
@@ -108,10 +116,11 @@ export function ReportChart({ period, date }: ReportChartProps) {
                 const weekDaysInterval = eachDayOfInterval({start: reportPeriodStart, end: reportPeriodEnd});
                 let activeDaysInWeek = 0;
                 weekDaysInterval.forEach(dayInWeek => {
-                    const isActiveThisDay = 
-                        (isEqual(dayInWeek, subStartDate) || isAfter(dayInWeek, subStartDate)) &&
-                        (!subEndDate || isEqual(dayInWeek, subEndDate) || isBefore(dayInWeek, subEndDate));
-                    if (isActiveThisDay) {
+                    // Check if dayInWeek is within the subscription's active period
+                    const dayIsOnOrAfterSubStart = isEqual(dayInWeek, subStartDate) || isAfter(dayInWeek, subStartDate);
+                    const dayIsOnOrBeforeSubEnd = !subEndDate || isEqual(dayInWeek, subEndDate) || isBefore(dayInWeek, subEndDate);
+
+                    if (dayIsOnOrAfterSubStart && dayIsOnOrBeforeSubEnd) {
                         activeDaysInWeek++;
                     }
                 });
@@ -121,38 +130,55 @@ export function ReportChart({ period, date }: ReportChartProps) {
       }
       
       if (subContribution > 0) {
-         const categoryIdToUse = sub.categoryId || subscriptionsCategoryId; 
+         // Use the specific categoryId from the subscription if available, otherwise the general subscriptions category.
+         const categoryIdToUse = sub.categoryId && getCategoryById(sub.categoryId) ? sub.categoryId : subscriptionsCategoryId;
          aggregatedData[categoryIdToUse] = (aggregatedData[categoryIdToUse] || 0) + subContribution;
       }
     });
     
-    return Object.entries(aggregatedData).map(([categoryId, total]) => ({
-      name: getCategoryById(categoryId)?.name || (categoryId === subscriptionsCategoryId ? 'Subscriptions' : "Uncategorized"),
-      value: total, // Renamed from valueInDefaultCurrency to generic 'value' for pie chart
-    })).filter(d => d.value > 0).sort((a,b) => b.value - a.value);
+    return Object.entries(aggregatedData).map(([categoryId, total]) => {
+      let name = getCategoryById(categoryId)?.name;
+      if (!name && categoryId === 'uncategorized_subscriptions') {
+        name = subscriptionsCategoryName;
+      } else if (!name) {
+        name = "Uncategorized";
+      }
+      return {
+        name: name,
+        value: total, 
+      };
+    }).filter(d => d.value > 0).sort((a,b) => b.value - a.value);
   };
 
   const data = calculateReportData();
 
   const getTitle = () => {
-    switch (period) {
+    let periodName = "";
+     switch (period) {
       case 'weekly':
-        return `Spending Breakdown: ${format(startOfWeek(date, { weekStartsOn: 1 }), "MMM d")} - ${format(endOfWeek(date, { weekStartsOn: 1 }), "MMM d, yyyy")}`;
+        periodName = `${format(startOfWeek(date, { weekStartsOn: 1 }), "MMM d")} - ${format(endOfWeek(date, { weekStartsOn: 1 }), "MMM d, yyyy")}`;
+        break;
       case 'monthly':
-        return `Spending Breakdown: ${format(date, "MMMM yyyy")}`;
+        periodName = format(date, "MMMM yyyy");
+        break;
       case 'yearly':
-        return `Spending Breakdown: ${format(date, "yyyy")}`;
+        periodName = format(date, "yyyy");
+        break;
     }
+    return `Category Breakdown: ${periodName}`;
   }
   
   if (isLoading || !defaultCurrency) {
     return (
-      <Card>
+      <Card className="shadow-md">
         <CardHeader>
-           <Skeleton className="h-7 w-3/4" />
+           <div className="flex items-center">
+             <PieChartIcon className="mr-2 h-5 w-5 text-primary" />
+             <Skeleton className="h-6 w-3/4" />
+           </div>
         </CardHeader>
         <CardContent className="h-[350px] flex items-center justify-center">
-          <Skeleton className="h-full w-full rounded-full" />
+          <Skeleton className="h-[280px] w-[280px] rounded-full" />
         </CardContent>
       </Card>
     );
@@ -160,12 +186,15 @@ export function ReportChart({ period, date }: ReportChartProps) {
 
   if (data.length === 0) {
     return (
-       <Card>
+       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle className="text-xl font-headline">{getTitle()}</CardTitle>
+          <CardTitle className="text-lg font-semibold flex items-center">
+            <PieChartIcon className="mr-2 h-5 w-5 text-primary" />
+            {getTitle()}
+          </CardTitle>
         </CardHeader>
         <CardContent className="h-[350px] flex items-center justify-center">
-          <p className="text-muted-foreground">No spending data available for this period.</p>
+          <p className="text-muted-foreground">No category spending data available for this period.</p>
         </CardContent>
       </Card>
     )
@@ -187,9 +216,12 @@ export function ReportChart({ period, date }: ReportChartProps) {
   };
 
   return (
-    <Card>
+    <Card className="shadow-md">
       <CardHeader>
-        <CardTitle className="text-xl font-headline">{getTitle()}</CardTitle>
+        <CardTitle className="text-lg font-semibold flex items-center">
+          <PieChartIcon className="mr-2 h-5 w-5 text-primary" />
+          {getTitle()}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <div style={{ width: '100%', height: 350 }}>
@@ -207,10 +239,11 @@ export function ReportChart({ period, date }: ReportChartProps) {
                 label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name }) => {
                   const RADIAN = Math.PI / 180;
                   const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                  const x = cx + (radius + 15) * Math.cos(-midAngle * RADIAN);
-                  const y = cy + (radius + 15) * Math.sin(-midAngle * RADIAN);
+                  const x = cx + (radius + 25) * Math.cos(-midAngle * RADIAN); // Increased label distance
+                  const y = cy + (radius + 25) * Math.sin(-midAngle * RADIAN); // Increased label distance
                   const textAnchor = x > cx ? 'start' : 'end';
-                  if (percent * 100 < 5) return null; // Hide label for very small slices
+                  
+                  if (percent * 100 < 3) return null; // Hide label for very small slices to avoid clutter
 
                   return (
                     <text x={x} y={y} fill="hsl(var(--foreground))" textAnchor={textAnchor} dominantBaseline="central" fontSize="12px">
@@ -220,16 +253,20 @@ export function ReportChart({ period, date }: ReportChartProps) {
                 }}
               >
                 {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="hsl(var(--background))" strokeWidth={2} />
                 ))}
               </Pie>
               <Tooltip content={<CustomTooltip />} />
               <Legend 
-                wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }} 
+                wrapperStyle={{ fontSize: '12px', paddingTop: '20px', paddingBottom: '10px' }} 
                 formatter={(value, entry) => {
-                     const { color } = entry;
-                     return <span style={{ color }}>{value}</span>;
+                     const { color } = entry; // entry.color is provided by Recharts
+                     return <span style={{ color: color }}>{value}</span>;
                 }}
+                iconSize={10}
+                layout="horizontal"
+                verticalAlign="bottom"
+                align="center"
               />
             </PieChart>
           </ResponsiveContainer>

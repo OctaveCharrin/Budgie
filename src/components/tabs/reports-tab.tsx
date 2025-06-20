@@ -5,10 +5,11 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ReportChart } from "@/components/report-chart";
-import type { ReportPeriod, Expense, Subscription, CurrencyCode } from "@/lib/types";
+import { DailyExpensesLineChart } from "@/components/daily-expenses-line-chart"; // New import
+import type { ReportPeriod } from "@/lib/types";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, ChevronLeft, ChevronRight, Wallet } from "lucide-react";
+import { CalendarIcon, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown } from "lucide-react";
 import { 
   format, addWeeks, subWeeks, 
   addMonths, subMonths, addYears, 
@@ -22,6 +23,9 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { useData } from "@/contexts/data-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox"; // New import
+import { Label } from "@/components/ui/label"; // New import
+import { Separator } from "@/components/ui/separator";
 
 
 export function ReportsTab() {
@@ -29,8 +33,9 @@ export function ReportsTab() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [totalPeriodSpending, setTotalPeriodSpending] = useState<number | null>(null);
   const [isCalculatingTotal, setIsCalculatingTotal] = useState(true);
+  const [accumulateDailyExpenses, setAccumulateDailyExpenses] = useState(false); // New state
 
-  const { expenses, subscriptions, isLoading: isDataContextLoading, settings, getAmountInDefaultCurrency, getCategoryById, categories } = useData();
+  const { expenses, subscriptions, isLoading: isDataContextLoading, settings, getAmountInDefaultCurrency, categories } = useData();
   const defaultCurrency = settings.defaultCurrency;
 
   const handleDateChange = (date: Date | undefined) => {
@@ -105,7 +110,7 @@ export function ReportsTab() {
       let subContribution = 0;
       const monthlyAmountInDefault = getAmountInDefaultCurrency(sub);
 
-      if (isAfter(subStartDate, reportPeriodEnd)) return;
+      if (isAfter(subStartDate, reportPeriodEnd) && !isEqual(subStartDate, reportPeriodEnd)) return;
 
       if (period === 'monthly') {
         const isActiveInMonth = 
@@ -136,10 +141,11 @@ export function ReportsTab() {
                 const weekDaysInterval = eachDayOfInterval({start: reportPeriodStart, end: reportPeriodEnd});
                 let activeDaysInWeek = 0;
                 weekDaysInterval.forEach(dayInWeek => {
-                    const isActiveThisDay = 
-                        (isEqual(dayInWeek, subStartDate) || isAfter(dayInWeek, subStartDate)) &&
-                        (!subEndDate || isEqual(dayInWeek, subEndDate) || isBefore(dayInWeek, subEndDate));
-                    if (isActiveThisDay) activeDaysInWeek++;
+                    const dayIsOnOrAfterSubStart = isEqual(dayInWeek, subStartDate) || isAfter(dayInWeek, subStartDate);
+                    const dayIsOnOrBeforeSubEnd = !subEndDate || isEqual(dayInWeek, subEndDate) || isBefore(dayInWeek, subEndDate);
+                    if (dayIsOnOrAfterSubStart && dayIsOnOrBeforeSubEnd) {
+                        activeDaysInWeek++;
+                    }
                 });
                 subContribution = dailyRate * activeDaysInWeek;
             }
@@ -208,8 +214,8 @@ export function ReportsTab() {
                         onSelect={handleDateChange}
                         initialFocus
                         captionLayout={period === 'yearly' ? "dropdown-buttons" : "buttons"}
-                        fromYear={2000}
-                        toYear={new Date().getFullYear() + 5}
+                        fromYear={startOfYear(subYears(new Date(), 10)).getFullYear()}
+                        toYear={endOfYear(addYears(new Date(), 10)).getFullYear()}
                     />
                     </PopoverContent>
                 </Popover>
@@ -237,9 +243,40 @@ export function ReportsTab() {
           )}
         </CardContent>
       </Card>
+      
+      <Separator />
 
+      <Card className="shadow-md">
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+            <CardTitle className="text-lg font-semibold flex items-center">
+              <TrendingUp className="mr-2 h-5 w-5 text-primary" />
+              Daily Spending Trend
+            </CardTitle>
+            <div className="flex items-center space-x-2 pt-2 sm:pt-0">
+              <Checkbox
+                id="accumulateCheckbox"
+                checked={accumulateDailyExpenses}
+                onCheckedChange={(checked) => setAccumulateDailyExpenses(Boolean(checked))}
+              />
+              <Label htmlFor="accumulateCheckbox" className="text-sm font-medium">
+                Accumulate daily totals
+              </Label>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <DailyExpensesLineChart
+            period={period}
+            selectedDate={selectedDate}
+            accumulate={accumulateDailyExpenses}
+          />
+        </CardContent>
+      </Card>
+
+      <Separator />
+      
       <ReportChart period={period} date={selectedDate} />
     </div>
   );
 }
-
