@@ -34,6 +34,7 @@ export interface Subscription {
 
 export interface AppSettings {
   defaultCurrency: CurrencyCode;
+  apiKey?: string; // Optional API key for exchange rate service
 }
 
 export type ReportPeriod = 'weekly' | 'monthly' | 'yearly';

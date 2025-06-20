@@ -4,13 +4,12 @@ import type { CurrencyCode } from '@/lib/types';
 import { SUPPORTED_CURRENCIES } from '@/lib/constants';
 
 const API_BASE_URL = 'https://v6.exchangerate-api.com/v6';
-const API_KEY = process.env.EXCHANGE_RATE_API_KEY || 'YOUR_PLACEHOLDER_API_KEY';
 
 interface ExchangeRateApiResponse {
   result: string;
   conversion_rates: Record<string, number>;
   base_code: string;
-  error?: { type: string };
+  error?: { type: string; 'error-type'?: string }; // Adjusted to include 'error-type'
 }
 
 interface CachedRates {
@@ -26,7 +25,7 @@ function getCachedRates(baseCurrency: CurrencyCode): Record<CurrencyCode, number
   if (cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_TTL)) {
     return cachedEntry.rates;
   }
-  exchangeRateCache.delete(baseCurrency); // Remove expired or non-existent entry
+  exchangeRateCache.delete(baseCurrency);
   return null;
 }
 
@@ -38,7 +37,8 @@ function setCachedRates(baseCurrency: CurrencyCode, rates: Record<CurrencyCode, 
 }
 
 export async function fetchExchangeRates(
-  baseCurrency: CurrencyCode
+  baseCurrency: CurrencyCode,
+  apiKeyFromSettings?: string
 ): Promise<Record<CurrencyCode, number> | null> {
   const cached = getCachedRates(baseCurrency);
   if (cached) {
@@ -46,36 +46,43 @@ export async function fetchExchangeRates(
     return cached;
   }
 
-  if (API_KEY === 'YOUR_PLACEHOLDER_API_KEY') {
-    console.warn("ExchangeRate-API key is not configured. Please set EXCHANGE_RATE_API_KEY.");
+  const resolvedApiKey = apiKeyFromSettings || process.env.EXCHANGE_RATE_API_KEY;
+
+  if (!resolvedApiKey || resolvedApiKey === 'YOUR_PLACEHOLDER_API_KEY') {
+    console.warn("ExchangeRate-API key is not configured or is a placeholder. Using fallback rates.");
     const fallbackRates = {} as Record<CurrencyCode, number>;
-    SUPPORTED_CURRENCIES.forEach(code => fallbackRates[code] = 1);
-    fallbackRates[baseCurrency] = 1;
+    SUPPORTED_CURRENCIES.forEach(code => fallbackRates[code] = 1); // Default to 1:1
+    fallbackRates[baseCurrency] = 1; // Base currency is always 1 against itself
+
+    // Apply more specific fallbacks if needed
     if (baseCurrency === 'USD') {
         fallbackRates['EUR'] = 0.93; fallbackRates['JPY'] = 157; fallbackRates['CHF'] = 0.90;
     } else if (baseCurrency === 'EUR') {
         fallbackRates['USD'] = 1.08; fallbackRates['JPY'] = 169; fallbackRates['CHF'] = 0.97;
     }
-    console.warn(`Using placeholder exchange rates for ${baseCurrency}. THIS IS NOT REAL DATA.`);
-    setCachedRates(baseCurrency, fallbackRates); // Cache placeholder rates too
+    // Add more fallbacks for JPY, CHF if desired, or keep them 1:1 to base if not USD/EUR
+
+    setCachedRates(baseCurrency, fallbackRates);
     return fallbackRates;
   }
 
-  const url = `${API_BASE_URL}/${API_KEY}/latest/${baseCurrency}`;
-  console.log(`Fetching live exchange rates for ${baseCurrency} from API.`);
+  const url = `${API_BASE_URL}/${resolvedApiKey}/latest/${baseCurrency}`;
+  console.log(`Fetching live exchange rates for ${baseCurrency} using configured API key.`);
 
   try {
-    const response = await fetch(url, { next: { revalidate: CACHE_TTL / 1000 } }); // Next.js fetch cache revalidation
+    const response = await fetch(url, { next: { revalidate: CACHE_TTL / 1000 } });
     if (!response.ok) {
-      const errorBody = await response.text();
-      console.error(`API Error (${response.status}): ${errorBody}`);
-      throw new Error(`Failed to fetch exchange rates: ${response.statusText}`);
+      const errorBody = await response.json() as ExchangeRateApiResponse; // Try to parse as JSON for detailed error
+      const errorType = errorBody?.error?.['error-type'] || errorBody?.error?.type || `HTTP ${response.status}`;
+      console.error(`API Error (${response.status}) fetching rates for ${baseCurrency}: ${errorType}`);
+      throw new Error(`Failed to fetch exchange rates: ${errorType}`);
     }
     const data: ExchangeRateApiResponse = await response.json();
 
     if (data.result === 'error' || data.error) {
-        console.error('ExchangeRate-API returned an error:', data.error?.type || 'Unknown API error');
-        throw new Error(data.error?.type || 'Failed to fetch exchange rates due to API error');
+        const errorType = data.error?.['error-type'] || data.error?.type || 'Unknown API error';
+        console.error(`ExchangeRate-API returned an error for ${baseCurrency}: ${errorType}`);
+        throw new Error(`Failed to fetch exchange rates: ${errorType}`);
     }
     
     const rates: Record<CurrencyCode, number> = {} as Record<CurrencyCode, number>;
@@ -83,30 +90,34 @@ export async function fetchExchangeRates(
       if (data.conversion_rates[currency]) {
         rates[currency] = data.conversion_rates[currency];
       } else {
-        console.warn(`Rate for ${currency} not found in API response for base ${baseCurrency}.`);
+        console.warn(`Rate for ${currency} not found in API response for base ${baseCurrency}. Defaulting to 1.`);
         rates[currency] = 1; 
       }
     }
     setCachedRates(baseCurrency, rates);
     return rates;
   } catch (error) {
-    console.error('Error fetching exchange rates:', error);
-    // Don't cache on error, let it retry next time
+    console.error('Error in fetchExchangeRates:', error);
     throw error; 
   }
 }
 
 export async function convertAmountToAllCurrencies(
   amount: number,
-  baseCurrency: CurrencyCode
+  baseCurrency: CurrencyCode,
+  apiKeyFromSettings?: string
 ): Promise<Record<CurrencyCode, number>> {
-  const rates = await fetchExchangeRates(baseCurrency);
+  const rates = await fetchExchangeRates(baseCurrency, apiKeyFromSettings);
   if (!rates) {
-    // This case should ideally be handled more gracefully, perhaps by returning original amount for base currency
-    // and zero or error indicators for others, or by having a more robust fallback.
-    // For now, throwing an error signifies a critical failure in obtaining rates.
     console.error(`Failed to get rates for ${baseCurrency}, cannot convert amount ${amount}.`);
-    throw new Error(`Could not fetch exchange rates for conversion from ${baseCurrency}.`);
+    // Fallback: return amounts where base currency is correct, others might be inaccurate (e.g., 0 or 1x amount)
+    // This prevents a hard crash if API fails completely.
+    const fallbackAmounts = {} as Record<CurrencyCode, number>;
+    SUPPORTED_CURRENCIES.forEach(code => {
+        fallbackAmounts[code] = (code === baseCurrency) ? amount : amount; // or 0 for non-base if more appropriate
+    });
+    console.warn(`Returning potentially inaccurate conversions for ${baseCurrency} due to rate fetch failure.`);
+    return fallbackAmounts;
   }
 
   const convertedAmounts: Record<CurrencyCode, number> = {} as Record<CurrencyCode, number>;

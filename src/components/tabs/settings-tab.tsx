@@ -1,9 +1,9 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Trash2, RotateCcw, Settings2, AlertTriangle } from "lucide-react"; // Added AlertTriangle
+import { PlusCircle, Trash2, RotateCcw, Settings2, AlertTriangle, KeyRound, Eye, EyeOff } from "lucide-react";
 import { useData } from "@/contexts/data-context";
 import { CategoryForm } from "@/components/forms/category-form";
 import { CategoryListItem } from "@/components/list-items/category-list-item";
@@ -51,8 +51,17 @@ export function SettingsTab() {
 
   const [isResetCategoriesAlertOpen, setIsResetCategoriesAlertOpen] = useState(false);
   const [resetCategoriesConfirmationInput, setResetCategoriesConfirmationInput] = useState("");
+
+  const [apiKeyInput, setApiKeyInput] = useState(settings?.apiKey || "");
+  const [showApiKey, setShowApiKey] = useState(false);
   
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (settings?.apiKey) {
+      setApiKeyInput(settings.apiKey);
+    }
+  }, [settings?.apiKey]);
 
   const handleEditCategory = (category: Category) => {
     setEditingCategory(category);
@@ -112,7 +121,26 @@ export function SettingsTab() {
   };
 
   const handleDefaultCurrencyChange = (currency: CurrencyCode) => {
-    updateSettings({ defaultCurrency: currency });
+    updateSettings({ ...settings, defaultCurrency: currency });
+  };
+
+  const handleApiKeySave = async () => {
+    try {
+      await updateSettings({ ...settings, apiKey: apiKeyInput.trim() });
+      toast({ title: "API Key Saved", description: "ExchangeRate-API key has been updated." });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Could not save API key." });
+    }
+  };
+
+  const getMaskedApiKeyDisplay = () => {
+    if (!settings?.apiKey || settings.apiKey.length === 0) {
+      return "Not Set";
+    }
+    if (settings.apiKey.length <= 7) {
+      return "••••••••";
+    }
+    return `••••••••${settings.apiKey.slice(-4)}`;
   };
   
   if (isDataLoading) {
@@ -132,6 +160,25 @@ export function SettingsTab() {
             </CardHeader>
             <CardContent>
                 <Skeleton className="h-10 w-48 rounded-md" /> {/* Select dropdown */}
+            </CardContent>
+           </Card>
+        </section>
+        <Separator/>
+        {/* API Key Settings Skeleton */}
+        <section>
+           <div className="flex items-center mb-4">
+             <Skeleton className="h-7 w-7 mr-3 rounded-full" />
+             <Skeleton className="h-9 w-1/2" />
+           </div>
+           <Card className="shadow-md">
+            <CardHeader>
+                <Skeleton className="h-6 w-1/2 mb-2" /> 
+                <Skeleton className="h-4 w-full mb-1" /> 
+                <Skeleton className="h-4 w-3/4" />      
+            </CardHeader>
+            <CardContent className="space-y-3">
+                <Skeleton className="h-10 w-full rounded-md" /> 
+                <Skeleton className="h-10 w-32 rounded-md" /> 
             </CardContent>
            </Card>
         </section>
@@ -205,7 +252,7 @@ export function SettingsTab() {
     <div className="space-y-8 p-1">
       <section>
         <h2 className="text-2xl font-semibold font-headline mb-4 flex items-center">
-            <Settings2 className="mr-3 h-7 w-7 text-primary" /> Currency Settings
+            <Settings2 className="mr-3 h-7 w-7 text-primary" /> General Settings
         </h2>
         <Card className="shadow-md">
             <CardHeader>
@@ -234,6 +281,48 @@ export function SettingsTab() {
                     </Select>
                 </div>
             </CardContent>
+        </Card>
+      </section>
+
+      <Separator />
+
+      <section>
+        <h2 className="text-2xl font-semibold font-headline mb-4 flex items-center">
+            <KeyRound className="mr-3 h-7 w-7 text-primary" /> Exchange Rate API Key
+        </h2>
+        <Card className="shadow-md">
+            <CardHeader>
+                <CardTitle>ExchangeRate-API Key</CardTitle>
+                <CardDescription>
+                    Provide your API key from <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer" className="underline text-primary hover:text-primary/80">ExchangeRate-API.com</a> for live currency conversions.
+                    The key is stored securely on the server and is not exposed to the browser.
+                    If no key is provided here or via environment variable, placeholder rates will be used.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div>
+                    <Label htmlFor="apiKeyInput">API Key</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                        <Input
+                        id="apiKeyInput"
+                        type={showApiKey ? "text" : "password"}
+                        value={apiKeyInput}
+                        onChange={(e) => setApiKeyInput(e.target.value)}
+                        placeholder="Enter your API key"
+                        className="flex-grow"
+                        />
+                        <Button variant="outline" size="icon" onClick={() => setShowApiKey(!showApiKey)} aria-label={showApiKey ? "Hide API key" : "Show API key"}>
+                            {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">
+                        Current Saved Key: {getMaskedApiKeyDisplay()}
+                    </p>
+                </div>
+            </CardContent>
+            <CardFooter>
+                 <Button onClick={handleApiKeySave} className="bg-accent hover:bg-accent/90 text-accent-foreground">Save API Key</Button>
+            </CardFooter>
         </Card>
       </section>
 

@@ -23,8 +23,8 @@ export const DATA_FILE_PATHS = {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   defaultCurrency: 'USD',
+  apiKey: '', // Initialize apiKey as empty
 };
 
 // Re-export SUPPORTED_CURRENCIES for easier import elsewhere
 export { SUPPORTED_CURRENCIES };
-

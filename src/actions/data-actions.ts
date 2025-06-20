@@ -48,6 +48,7 @@ async function getDb() {
 // --- Zod Schemas for Server-Side Validation ---
 const SettingsSchema = z.object({
   defaultCurrency: z.enum(SUPPORTED_CURRENCIES),
+  apiKey: z.string().optional(),
 });
 
 const CategoryBaseSchema = z.object({
@@ -200,7 +201,8 @@ export async function addExpenseAction(
 ): Promise<Expense> {
   const parsedData = AddExpenseInputSchema.parse(expenseData);
   const db = await getDb();
-  const amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency);
+  const currentSettings = await getSettingsAction();
+  const amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency, currentSettings.apiKey);
   const newExpenseId = generateId();
   const dayOfWeek = calculateDayOfWeek(parsedData.date);
   
@@ -226,6 +228,7 @@ export async function addExpenseAction(
 export async function updateExpenseAction(updatedExpenseData: Expense): Promise<Expense> {
   const parsedData = UpdateExpenseInputSchema.parse(updatedExpenseData);
   const db = await getDb();
+  const currentSettings = await getSettingsAction();
   const existingExpenseRow = await db.get('SELECT originalAmount, originalCurrency FROM expenses WHERE id = ?', parsedData.id);
 
   if (!existingExpenseRow) {
@@ -237,7 +240,7 @@ export async function updateExpenseAction(updatedExpenseData: Expense): Promise<
     Number(existingExpenseRow.originalAmount) !== parsedData.originalAmount ||
     existingExpenseRow.originalCurrency !== parsedData.originalCurrency
   ) {
-    amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency);
+    amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency, currentSettings.apiKey);
   }
   
   const dayOfWeek = calculateDayOfWeek(parsedData.date);
@@ -299,7 +302,8 @@ export async function addSubscriptionAction(
     throw new Error('Subscription categoryId is missing or invalid.');
   }
   const db = await getDb();
-  const amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency);
+  const currentSettings = await getSettingsAction();
+  const amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency, currentSettings.apiKey);
   const newSubscriptionId = generateId();
 
   const dbAmountParams = mapAmountsToDbPlaceholders(amounts);
@@ -329,6 +333,7 @@ export async function updateSubscriptionAction(updatedSubscriptionData: Subscrip
     throw new Error('Subscription categoryId is missing or invalid for update.');
   }
   const db = await getDb();
+  const currentSettings = await getSettingsAction();
   const existingSubRow = await db.get('SELECT originalAmount, originalCurrency FROM subscriptions WHERE id = ?', parsedData.id);
   
   if (!existingSubRow) {
@@ -340,7 +345,7 @@ export async function updateSubscriptionAction(updatedSubscriptionData: Subscrip
     Number(existingSubRow.originalAmount) !== parsedData.originalAmount ||
     existingSubRow.originalCurrency !== parsedData.originalCurrency
   ) {
-    amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency);
+    amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency, currentSettings.apiKey);
   }
   
   const dbAmountParams = mapAmountsToDbPlaceholders(amounts);
