@@ -1,7 +1,8 @@
 
 "use client";
 
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import React, { useState, useMemo } from "react";
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, Sector } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useData } from "@/contexts/data-context";
 import type { ReportPeriod, ChartDataPoint, Category, CurrencyCode } from "@/lib/types";
@@ -17,7 +18,7 @@ import {
 } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
-import { PieChart as PieChartIcon } from "lucide-react"; // Updated Icon
+import { PieChart as PieChartIcon } from "lucide-react";
 
 const COLORS = [
   '#FF6384', // Pinkish Red
@@ -43,6 +44,7 @@ interface ReportChartProps {
 export function ReportChart({ period, date }: ReportChartProps) {
   const { expenses, subscriptions, getCategoryById, isLoading, settings, getAmountInDefaultCurrency, categories } = useData();
   const defaultCurrency = settings.defaultCurrency;
+  const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
 
   const calculateReportData = (): ChartDataPoint[] => {
     if (isLoading || !defaultCurrency || !categories) return [];
@@ -59,7 +61,7 @@ export function ReportChart({ period, date }: ReportChartProps) {
         reportPeriodEnd = endOfMonth(date);
         break;
       case 'yearly':
-      default: // Default to yearly if period is unexpected, though UI should prevent this.
+      default:
         reportPeriodStart = startOfYear(date);
         reportPeriodEnd = endOfYear(date);
         break;
@@ -74,10 +76,9 @@ export function ReportChart({ period, date }: ReportChartProps) {
       }
     });
     
-    // Ensure 'subscriptions' category exists or handle its absence gracefully
     const subscriptionsCategoryInfo = categories.find(c => c.id === 'subscriptions' || c.name.toLowerCase() === 'subscriptions');
-    const subscriptionsCategoryId = subscriptionsCategoryInfo ? subscriptionsCategoryInfo.id : 'uncategorized_subscriptions'; // Fallback ID
-    const subscriptionsCategoryName = subscriptionsCategoryInfo ? subscriptionsCategoryInfo.name : 'Subscriptions (Uncategorized)'; // Fallback Name
+    const subscriptionsCategoryId = subscriptionsCategoryInfo ? subscriptionsCategoryInfo.id : 'uncategorized_subscriptions'; 
+    const subscriptionsCategoryName = subscriptionsCategoryInfo ? subscriptionsCategoryInfo.name : 'Subscriptions (Uncategorized)'; 
     
     subscriptions.forEach(sub => {
       const subStartDate = parseISO(sub.startDate);
@@ -106,9 +107,9 @@ export function ReportChart({ period, date }: ReportChartProps) {
              subContribution += monthlyAmountInDefault;
           }
         });
-      } else { // weekly
+      } else { 
         const billingMonthForWeekStart = startOfMonth(reportPeriodStart); 
-        const billingMonthForWeekEnd = endOfMonth(reportPeriodStart); // This should be end of the month reportPeriodStart is in.
+        const billingMonthForWeekEnd = endOfMonth(reportPeriodStart); 
 
         const isActiveInBillingMonth =
           (isEqual(subStartDate, billingMonthForWeekEnd) || isBefore(subStartDate, billingMonthForWeekEnd)) &&
@@ -121,7 +122,6 @@ export function ReportChart({ period, date }: ReportChartProps) {
                 const weekDaysInterval = eachDayOfInterval({start: reportPeriodStart, end: reportPeriodEnd});
                 let activeDaysInWeek = 0;
                 weekDaysInterval.forEach(dayInWeek => {
-                    // Check if dayInWeek is within the subscription's active period
                     const dayIsOnOrAfterSubStart = isEqual(dayInWeek, subStartDate) || isAfter(dayInWeek, subStartDate);
                     const dayIsOnOrBeforeSubEnd = !subEndDate || isEqual(dayInWeek, subEndDate) || isBefore(dayInWeek, subEndDate);
 
@@ -135,7 +135,6 @@ export function ReportChart({ period, date }: ReportChartProps) {
       }
       
       if (subContribution > 0) {
-         // Use the specific categoryId from the subscription if available, otherwise the general subscriptions category.
          const categoryIdToUse = sub.categoryId && getCategoryById(sub.categoryId) ? sub.categoryId : subscriptionsCategoryId;
          aggregatedData[categoryIdToUse] = (aggregatedData[categoryIdToUse] || 0) + subContribution;
       }
@@ -220,6 +219,32 @@ export function ReportChart({ period, date }: ReportChartProps) {
     return null;
   };
 
+  const onPieEnter = (_: any, index: number) => {
+    setActiveIndex(index);
+  };
+
+  const onPieLeave = () => {
+    setActiveIndex(undefined);
+  };
+
+  const renderActiveShape = (props: any) => {
+    const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
+    return (
+      <Sector
+        cx={cx}
+        cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={outerRadius + 6} // Make slice slightly larger on hover
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+        stroke={fill} // Optional: add a stroke of the same color for emphasis
+        strokeWidth={1}
+      />
+    );
+  };
+
+
   return (
     <Card className="shadow-md">
       <CardHeader>
@@ -236,37 +261,30 @@ export function ReportChart({ period, date }: ReportChartProps) {
                 data={data}
                 cx="50%"
                 cy="50%"
-                labelLine={false}
                 outerRadius={120}
-                fill="#8884d8" // Default fill, overridden by Cell
+                fill="#8884d8" 
                 dataKey="value"
                 nameKey="name"
                 animationDuration={500}
-                label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name }) => {
-                  const RADIAN = Math.PI / 180;
-                  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                  const x = cx + (radius + 25) * Math.cos(-midAngle * RADIAN); // Increased label distance
-                  const y = cy + (radius + 25) * Math.sin(-midAngle * RADIAN); // Increased label distance
-                  const textAnchor = x > cx ? 'start' : 'end';
-                  
-                  if (percent * 100 < 3) return null; // Hide label for very small slices to avoid clutter
-
-                  return (
-                    <text x={x} y={y} fill="hsl(var(--foreground))" textAnchor={textAnchor} dominantBaseline="central" fontSize="12px">
-                      {`${name} (${(percent * 100).toFixed(0)}%)`}
-                    </text>
-                  );
-                }}
+                activeIndex={activeIndex}
+                activeShape={renderActiveShape}
+                onMouseEnter={onPieEnter}
+                onMouseLeave={onPieLeave}
               >
                 {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="hsl(var(--background))" strokeWidth={2} />
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={COLORS[index % COLORS.length]} 
+                    stroke="hsl(var(--background))" 
+                    strokeWidth={2} 
+                  />
                 ))}
               </Pie>
               <Tooltip content={<CustomTooltip />} />
               <Legend 
                 wrapperStyle={{ fontSize: '12px', paddingTop: '20px', paddingBottom: '10px' }} 
                 formatter={(value, entry) => {
-                     const { color } = entry; // entry.color is provided by Recharts
+                     const { color } = entry; 
                      return <span style={{ color: color }}>{value}</span>;
                 }}
                 iconSize={10}
@@ -281,4 +299,3 @@ export function ReportChart({ period, date }: ReportChartProps) {
     </Card>
   );
 }
-
