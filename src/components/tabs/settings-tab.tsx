@@ -21,12 +21,11 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
 export function SettingsTab() {
-  // Category Management State & Logic (inspired by original CategoriesTab)
+  // Category Management State & Logic
   const { categories, isLoading: isDataLoading, deleteAllExpenses } = useData();
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | undefined>(undefined);
@@ -61,11 +60,11 @@ export function SettingsTab() {
     return (
       <div className="space-y-8 p-1">
         <section>
-          <Skeleton className="h-9 w-1/2 mb-4" />
+          <h2 className="text-2xl font-semibold font-headline mb-4"><Skeleton className="h-9 w-1/2" /></h2>
           <Card>
             <CardHeader>
-              <Skeleton className="h-6 w-1/3 mb-1" />
-              <Skeleton className="h-4 w-full" />
+              <CardTitle><Skeleton className="h-6 w-1/3 mb-1" /></CardTitle>
+              <CardDescription><Skeleton className="h-4 w-full" /></CardDescription>
             </CardHeader>
             <CardContent>
               <Skeleton className="h-10 w-48" />
@@ -74,10 +73,10 @@ export function SettingsTab() {
         </section>
         <section>
           <div className="flex justify-between items-center mb-6">
-            <Skeleton className="h-9 w-48" />
+            <h2 className="text-2xl font-semibold font-headline"><Skeleton className="h-9 w-48" /></h2>
             <Skeleton className="h-10 w-36" />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pr-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
           </div>
         </section>
@@ -147,13 +146,11 @@ export function SettingsTab() {
         </div>
 
         {sortedCategories.length > 0 ? (
-          <ScrollArea className="h-[calc(100vh_-_30rem)]"> {/* Adjusted height */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pr-3">
-              {sortedCategories.map(category => (
-                <CategoryListItem key={category.id} category={category} onEdit={handleEditCategory} />
-              ))}
-            </div>
-          </ScrollArea>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {sortedCategories.map(category => (
+              <CategoryListItem key={category.id} category={category} onEdit={handleEditCategory} />
+            ))}
+          </div>
         ) : (
           <div className="text-center py-10">
               <p className="text-muted-foreground">No categories found. Add one to get started!</p>
