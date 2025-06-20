@@ -5,11 +5,12 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ReportChart } from "@/components/report-chart";
-import { DailyExpensesLineChart } from "@/components/daily-expenses-line-chart"; // New import
+import { DailyExpensesLineChart } from "@/components/daily-expenses-line-chart";
+import { WeekdaySpendingBarChart } from "@/components/weekday-spending-bar-chart"; // New import
 import type { ReportPeriod } from "@/lib/types";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, ChevronLeft, ChevronRight, Wallet, TrendingUp, TrendingDown } from "lucide-react";
+import { CalendarIcon, ChevronLeft, ChevronRight, Wallet, TrendingUp, BarChart2 } from "lucide-react";
 import { 
   format, addWeeks, subWeeks, 
   addMonths, subMonths, addYears, 
@@ -23,17 +24,15 @@ import { cn, formatCurrency } from "@/lib/utils";
 import { useData } from "@/contexts/data-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Checkbox } from "@/components/ui/checkbox"; // New import
-import { Label } from "@/components/ui/label"; // New import
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
 
 export function ReportsTab() {
   const [period, setPeriod] = useState<ReportPeriod>("monthly");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [totalPeriodSpending, setTotalPeriodSpending] = useState<number | null>(null);
-  const [isCalculatingTotal, setIsCalculatingTotal] = useState(true);
-  const [accumulateDailyExpenses, setAccumulateDailyExpenses] = useState(false); // New state
+  const [accumulateDailyExpenses, setAccumulateDailyExpenses] = useState(false);
 
   const { expenses, subscriptions, isLoading: isDataContextLoading, settings, getAmountInDefaultCurrency, categories } = useData();
   const defaultCurrency = settings.defaultCurrency;
@@ -45,17 +44,19 @@ export function ReportsTab() {
   };
 
   const navigateDate = (direction: 'prev' | 'next') => {
+    let newDate = selectedDate;
     switch (period) {
       case 'weekly':
-        setSelectedDate(direction === 'prev' ? subWeeks(selectedDate, 1) : addWeeks(selectedDate, 1));
+        newDate = direction === 'prev' ? subWeeks(selectedDate, 1) : addWeeks(selectedDate, 1);
         break;
       case 'monthly':
-        setSelectedDate(direction === 'prev' ? subMonths(selectedDate, 1) : addMonths(selectedDate, 1));
+        newDate = direction === 'prev' ? subMonths(selectedDate, 1) : addMonths(selectedDate, 1);
         break;
       case 'yearly':
-        setSelectedDate(direction === 'prev' ? subYears(selectedDate, 1) : addYears(selectedDate, 1));
+        newDate = direction === 'prev' ? subYears(selectedDate, 1) : addYears(selectedDate, 1);
         break;
     }
+    setSelectedDate(newDate);
   };
   
   const getDateRangeDisplay = () => {
@@ -71,13 +72,10 @@ export function ReportsTab() {
     }
   };
 
-  useEffect(() => {
+  const { totalPeriodSpending, isCalculatingTotal } = useMemo(() => {
     if (isDataContextLoading || !defaultCurrency || !categories) {
-      setIsCalculatingTotal(true);
-      setTotalPeriodSpending(null);
-      return;
+      return { totalPeriodSpending: null, isCalculatingTotal: true };
     }
-    setIsCalculatingTotal(true);
 
     let reportPeriodStart: Date, reportPeriodEnd: Date;
     switch (period) {
@@ -97,7 +95,6 @@ export function ReportsTab() {
     }
 
     let currentTotal = 0;
-
     expenses.forEach(expense => {
       if (isWithinInterval(parseISO(expense.date), { start: reportPeriodStart, end: reportPeriodEnd })) {
         currentTotal += getAmountInDefaultCurrency(expense);
@@ -154,8 +151,7 @@ export function ReportsTab() {
       currentTotal += subContribution;
     });
     
-    setTotalPeriodSpending(currentTotal);
-    setIsCalculatingTotal(false);
+    return { totalPeriodSpending: currentTotal, isCalculatingTotal: false };
 
   }, [period, selectedDate, expenses, subscriptions, defaultCurrency, isDataContextLoading, getAmountInDefaultCurrency, categories]);
 
@@ -238,7 +234,7 @@ export function ReportsTab() {
             <Skeleton className="h-8 w-1/2" />
           ) : (
             <p className="text-3xl font-bold text-primary">
-              {formatCurrency(totalPeriodSpending, defaultCurrency)}
+              {defaultCurrency ? formatCurrency(totalPeriodSpending, defaultCurrency) : 'Loading...'}
             </p>
           )}
         </CardContent>
@@ -277,6 +273,21 @@ export function ReportsTab() {
       <Separator />
       
       <ReportChart period={period} date={selectedDate} />
+
+      <Separator />
+
+      <Card className="shadow-md">
+        <CardHeader>
+           <CardTitle className="text-lg font-semibold flex items-center">
+             <BarChart2 className="mr-2 h-5 w-5 text-primary" />
+             Average Spending by Weekday
+           </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <WeekdaySpendingBarChart period={period} selectedDate={selectedDate} />
+        </CardContent>
+      </Card>
+
     </div>
   );
 }
