@@ -3,7 +3,7 @@
 
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card"; // CardFooter removed as it's not used
+import { Card, CardContent } from "@/components/ui/card";
 import { useData } from "@/contexts/data-context";
 import type { Category } from "@/lib/types";
 import { IconDisplay } from "@/components/icon-display";

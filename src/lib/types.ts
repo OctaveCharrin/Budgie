@@ -1,6 +1,4 @@
 
-import type { LucideIcon } from 'lucide-react';
-
 export const SUPPORTED_CURRENCIES = ['USD', 'EUR', 'JPY', 'CHF'] as const;
 export type CurrencyCode = typeof SUPPORTED_CURRENCIES[number];
 
@@ -39,11 +37,6 @@ export interface AppSettings {
 }
 
 export type ReportPeriod = 'weekly' | 'monthly' | 'yearly';
-
-export interface ChartDataPoint {
-  name: string;
-  value: number;
-}
 
 // Used by DailyExpensesLineChart and for intermediate calcs in report-actions
 export interface DailyTotalDataPoint {
