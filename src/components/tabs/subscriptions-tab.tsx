@@ -13,11 +13,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card"; // Added for Skeleton
+
 
 const SELECT_ALL_CATEGORIES_VALUE = "__ALL_CATEGORIES__";
 
 export function SubscriptionsTab() {
-  const { subscriptions, categories, getCategoryById, isLoading } = useData();
+  const { subscriptions, categories, getCategoryById, isLoading, getAmountInDefaultCurrency } = useData();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState<Subscription | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
@@ -44,10 +46,12 @@ export function SubscriptionsTab() {
       return searchMatch && categoryFilterMatch;
     })
     .sort((a, b) => {
+      const amountA = getAmountInDefaultCurrency(a);
+      const amountB = getAmountInDefaultCurrency(b);
       switch (sortOrder) {
         case "name-desc": return b.name.localeCompare(a.name);
-        case "amount-desc": return b.amount - a.amount;
-        case "amount-asc": return a.amount - b.amount;
+        case "amount-desc": return amountB - amountA;
+        case "amount-asc": return amountA - amountB;
         case "name-asc":
         default:
           return a.name.localeCompare(b.name);
@@ -58,16 +62,38 @@ export function SubscriptionsTab() {
      return (
       <div className="space-y-6 p-1">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-          <Skeleton className="h-9 w-56" />
-          <Skeleton className="h-10 w-40 sm:w-auto" />
+          <Skeleton className="h-9 w-56" /> {/* "Manage Subscriptions" title */}
+          <Skeleton className="h-10 w-full sm:w-40 rounded-lg" /> {/* "Add Subscription" button */}
         </div>
         <div className="flex flex-col sm:flex-row gap-4 my-4">
-          <Skeleton className="h-10 flex-grow" />
-          <Skeleton className="h-10 w-full sm:w-[180px]" />
-          <Skeleton className="h-10 w-full sm:w-[180px]" />
+          <Skeleton className="h-10 flex-grow rounded-md" /> {/* Search Input */}
+          <Skeleton className="h-10 w-full sm:w-[180px] rounded-md" /> {/* Filter Category Select */}
+          <Skeleton className="h-10 w-full sm:w-[180px] rounded-md" /> {/* Sort Order Select */}
         </div>
         <div className="space-y-4 pr-3">
-          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
+          {[...Array(3)].map((_, i) => (
+             <Card key={i} className="w-full">
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <Skeleton className="h-5 w-32 mb-1" /> {/* Subscription Name */}
+                      <Skeleton className="h-3 w-40" /> {/* Category & Start Date */}
+                    </div>
+                    <div className="text-right">
+                      <Skeleton className="h-6 w-24 mb-1" /> {/* Amount/month */}
+                      <Skeleton className="h-3 w-20" /> {/* Original Amount (optional) */}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="py-2">
+                   <Skeleton className="h-4 w-full" /> {/* Description (optional) */}
+                </CardContent>
+                <CardFooter className="flex justify-end gap-2 pt-2 pb-3 px-3">
+                  <Skeleton className="h-8 w-8 rounded" /> {/* Edit Button */}
+                  <Skeleton className="h-8 w-8 rounded" /> {/* Delete Button */}
+                </CardFooter>
+              </Card>
+          ))}
         </div>
       </div>
     );

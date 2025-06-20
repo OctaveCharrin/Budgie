@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
@@ -84,41 +84,71 @@ export function SettingsTab() {
   if (isDataLoading) {
     return (
       <div className="space-y-8 p-1">
+        {/* Currency Settings Skeleton */}
         <section>
-           <h2 className="text-2xl font-semibold font-headline mb-4"><Skeleton className="h-9 w-1/2" /></h2>
-           <Card><CardContent className="p-4"><Skeleton className="h-10 w-48" /></CardContent></Card>
+           <div className="flex items-center mb-4">
+             <Skeleton className="h-7 w-7 mr-3 rounded-full" />
+             <Skeleton className="h-9 w-1/2" />
+           </div>
+           <Card className="shadow-md">
+            <CardHeader>
+                <Skeleton className="h-6 w-3/4 mb-2" /> {/* CardTitle */}
+                <Skeleton className="h-4 w-full mb-1" /> {/* CardDescription line 1 */}
+                <Skeleton className="h-4 w-5/6" />      {/* CardDescription line 2 */}
+            </CardHeader>
+            <CardContent>
+                <Skeleton className="h-10 w-48 rounded-md" /> {/* Select dropdown */}
+            </CardContent>
+           </Card>
         </section>
         <Separator/>
+        {/* Manage Categories Skeleton */}
         <section>
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold font-headline"><Skeleton className="h-9 w-48" /></h2>
-            <Skeleton className="h-10 w-36" />
+            <Skeleton className="h-9 w-48" /> {/* "Manage Categories" title */}
+            <Skeleton className="h-10 w-36 rounded-lg" /> {/* "Add Category" button */}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
+            {[...Array(3)].map((_, i) => (
+              <Card key={i} className="w-full">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-6 w-6 rounded-full" /> {/* Icon */}
+                    <Skeleton className="h-5 w-24" /> {/* Category Name */}
+                  </div>
+                  <div className="flex gap-2">
+                    <Skeleton className="h-8 w-8 rounded" /> {/* Edit Button */}
+                    <Skeleton className="h-8 w-8 rounded" /> {/* Delete Button */}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </section>
         <Separator />
+        {/* Data Management Skeleton */}
         <section>
-          <h2 className="text-2xl font-semibold font-headline mb-4"><Skeleton className="h-9 w-1/2" /></h2>
-          <Card>
-            <CardHeader>
-              <CardTitle><Skeleton className="h-6 w-1/3 mb-1" /></CardTitle>
-              <CardDescription><Skeleton className="h-4 w-full" /></CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-10 w-48" />
-            </CardContent>
-          </Card>
-           <Card className="mt-4">
-            <CardHeader>
-              <CardTitle><Skeleton className="h-6 w-1/3 mb-1" /></CardTitle>
-              <CardDescription><Skeleton className="h-4 w-full" /></CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-10 w-48" />
-            </CardContent>
-          </Card>
+          <Skeleton className="h-9 w-1/2 mb-4" /> {/* "Data Management" title */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="shadow-md">
+              <CardHeader>
+                <Skeleton className="h-6 w-3/4 mb-2" /> {/* CardTitle */}
+                <Skeleton className="h-4 w-full" /> {/* CardDescription */}
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-10 w-48 rounded-lg" /> {/* Button */}
+              </CardContent>
+            </Card>
+            <Card className="shadow-md">
+              <CardHeader>
+                <Skeleton className="h-6 w-3/4 mb-2" /> {/* CardTitle */}
+                <Skeleton className="h-4 w-full" /> {/* CardDescription */}
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-10 w-56 rounded-lg" /> {/* Button */}
+              </CardContent>
+            </Card>
+          </div>
         </section>
       </div>
     );
@@ -176,7 +206,6 @@ export function SettingsTab() {
               <DialogHeader>
                 <DialogTitle>{editingCategory ? "Edit Category" : "Add New Category"}</DialogTitle>
               </DialogHeader>
-              {/* For simplicity, CategoryForm remains as is, defaulting icon to DollarSign */}
               <CategoryForm category={editingCategory} onSave={closeCategoryDialogAndReset} />
             </DialogContent>
           </Dialog>

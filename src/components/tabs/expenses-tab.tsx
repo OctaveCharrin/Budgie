@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
+import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card"; // Added for Skeleton
 
 const SELECT_ALL_CATEGORIES_VALUE = "__ALL_CATEGORIES__";
 
@@ -41,7 +42,6 @@ export function ExpensesTab() {
       const category = getCategoryById(expense.categoryId);
       const descriptionMatch = expense.description?.toLowerCase().includes(searchTerm.toLowerCase());
       const categoryNameMatch = category?.name.toLowerCase().includes(searchTerm.toLowerCase());
-      // Search by formatted original amount and currency
       const originalAmountFormatted = formatCurrency(expense.originalAmount, expense.originalCurrency).toLowerCase();
       const amountMatch = originalAmountFormatted.includes(searchTerm.toLowerCase()) || expense.originalAmount.toString().includes(searchTerm);
       
@@ -66,16 +66,38 @@ export function ExpensesTab() {
     return (
       <div className="space-y-6 p-1">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-          <Skeleton className="h-9 w-48" />
-          <Skeleton className="h-10 w-36 sm:w-auto" />
+          <Skeleton className="h-9 w-48" /> {/* "Manage Expenses" title */}
+          <Skeleton className="h-10 w-full sm:w-36 rounded-lg" /> {/* "Add Expense" button */}
         </div>
         <div className="flex flex-col sm:flex-row gap-4 my-4">
-          <Skeleton className="h-10 flex-grow" />
-          <Skeleton className="h-10 w-full sm:w-[180px]" />
-          <Skeleton className="h-10 w-full sm:w-[180px]" />
+          <Skeleton className="h-10 flex-grow rounded-md" /> {/* Search Input */}
+          <Skeleton className="h-10 w-full sm:w-[180px] rounded-md" /> {/* Filter Category Select */}
+          <Skeleton className="h-10 w-full sm:w-[180px] rounded-md" /> {/* Sort Order Select */}
         </div>
         <div className="space-y-4 pr-3">
-          {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
+          {[...Array(3)].map((_, i) => (
+             <Card key={i} className="w-full">
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <Skeleton className="h-5 w-32 mb-1" /> {/* Category Name */}
+                      <Skeleton className="h-3 w-24" /> {/* Date */}
+                    </div>
+                    <div className="text-right">
+                      <Skeleton className="h-6 w-20 mb-1" /> {/* Amount */}
+                      <Skeleton className="h-3 w-16" /> {/* Original Amount (optional) */}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="py-2">
+                   <Skeleton className="h-4 w-full" /> {/* Description (optional) */}
+                </CardContent>
+                <CardFooter className="flex justify-end gap-2 pt-2 pb-3 px-3">
+                  <Skeleton className="h-8 w-8 rounded" /> {/* Edit Button */}
+                  <Skeleton className="h-8 w-8 rounded" /> {/* Delete Button */}
+                </CardFooter>
+              </Card>
+          ))}
         </div>
       </div>
     );

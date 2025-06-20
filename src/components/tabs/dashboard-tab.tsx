@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { PlusCircle, TrendingUp, Wallet } from "lucide-react";
 import { useData } from "@/contexts/data-context";
 import { ExpenseForm } from "@/components/forms/expense-form";
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ExpenseListItem } from "@/components/list-items/expense-list-item";
 import type { Expense } from "@/lib/types";
-import { startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO, addYears } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
 
@@ -57,10 +57,7 @@ export function DashboardTab() {
       setPercentageChange(0); 
     }
 
-    // Calculate total monthly cost of active subscriptions
     const activeSubsTotal = subscriptions.reduce((acc, sub) => {
-        // Basic check: is subscription start date before or within current month's end?
-        // More complex logic would be needed for pro-rating or exact active days.
         if (parseISO(sub.startDate) <= currentMonthEnd) {
             return acc + getAmountInDefaultCurrency(sub);
         }
@@ -104,7 +101,7 @@ export function DashboardTab() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Subscriptions</CardTitle>
+              <CardTitle className="text-sm font-medium">Monthly Subscriptions Cost</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -112,14 +109,36 @@ export function DashboardTab() {
               <Skeleton className="h-4 w-1/2" />
             </CardContent>
           </Card>
-          <div className="lg:col-span-1 md:col-span-2 flex items-center justify-center p-6">
-            <Skeleton className="h-12 w-full rounded-lg" />
+          <div className="lg:col-span-1 md:col-span-2 flex items-center justify-center p-2 sm:p-6">
+            <Skeleton className="h-12 w-full rounded-lg" /> {/* Placeholder for Add New Expense button */}
           </div>
         </div>
         <div>
-          <h2 className="text-xl font-semibold mb-3 font-headline">Recent Expenses</h2>
+          <Skeleton className="h-6 w-48 mb-3" /> {/* Placeholder for "Recent Expenses" title */}
           <div className="space-y-3 pr-3">
-            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
+            {[...Array(3)].map((_, i) => (
+              <Card key={i} className="w-full">
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <Skeleton className="h-5 w-32 mb-1" /> {/* Category Name */}
+                      <Skeleton className="h-3 w-24" /> {/* Date */}
+                    </div>
+                    <div className="text-right">
+                      <Skeleton className="h-6 w-20 mb-1" /> {/* Amount */}
+                      <Skeleton className="h-3 w-16" /> {/* Original Amount (optional) */}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="py-2">
+                   <Skeleton className="h-4 w-full" /> {/* Description (optional) */}
+                </CardContent>
+                <CardFooter className="flex justify-end gap-2 pt-2 pb-3 px-3">
+                  <Skeleton className="h-8 w-8 rounded" /> {/* Edit Button */}
+                  <Skeleton className="h-8 w-8 rounded" /> {/* Delete Button */}
+                </CardFooter>
+              </Card>
+            ))}
           </div>
         </div>
       </div>
@@ -140,7 +159,6 @@ export function DashboardTab() {
                 {formatCurrency(totalSpentThisMonth, settings.defaultCurrency)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {/* Percentage change compares only expenses, not total with subscriptions for simplicity here */}
               {percentageChange !== 0 && (
                 <>
                   {percentageChange > 0 ? '+' : ''}{percentageChange.toFixed(1)}% (expenses)

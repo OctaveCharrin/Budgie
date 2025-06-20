@@ -5,8 +5,8 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis, Toolti
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ChartConfig } from "@/components/ui/chart"; 
 import { useData } from "@/contexts/data-context";
-import type { ReportPeriod, ChartDataPoint, CurrencyCode, Category } from "@/lib/types";
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, eachDayOfInterval, eachMonthOfInterval, isWithinInterval, parseISO, addYears, differenceInMonths, getDaysInMonth } from "date-fns";
+import type { ReportPeriod, ChartDataPoint, Category } from "@/lib/types"; // Removed CurrencyCode as it's handled by settings
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, eachDayOfInterval, eachMonthOfInterval, isWithinInterval, parseISO, addYears, getDaysInMonth } from "date-fns"; // Removed differenceInMonths
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
 
@@ -58,7 +58,6 @@ export function ReportChart({ period, date }: ReportChartProps) {
       }
     });
     
-    // Aggregate subscriptions
     const subscriptionsCategoryId = categories.find(c => c.name.toLowerCase() === 'subscriptions')?.id || 'subscriptions_placeholder_id';
     
     subscriptions.forEach(sub => {
@@ -66,15 +65,13 @@ export function ReportChart({ period, date }: ReportChartProps) {
       let subContribution = 0;
       const amountInDefault = getAmountInDefaultCurrency(sub);
 
-      if (subStartDate > periodEnd) return; // Subscription hasn't started yet
+      if (subStartDate > periodEnd) return; 
 
       if (period === 'monthly') {
-        // If subscription is active for any part of the month
         if (subStartDate <= periodEnd && isWithinInterval(periodStart, {start: subStartDate, end: addYears(subStartDate, 100)})) {
             subContribution = amountInDefault;
         }
       } else if (period === 'yearly') {
-        // Calculate how many full or partial months the subscription is active within the year
         const yearMonths = eachMonthOfInterval({ start: periodStart, end: periodEnd });
         yearMonths.forEach(monthInYearStart => {
           const monthInYearEnd = endOfMonth(monthInYearStart);
@@ -83,17 +80,10 @@ export function ReportChart({ period, date }: ReportChartProps) {
           }
         });
       } else { // weekly
-        // Pro-rate monthly subscription for a week
-        // This is an approximation. A daily rate would be more accurate.
-        // Assuming sub amount is monthly. If subscription starts mid-week or ends mid-week, this gets complex.
-        // For simplicity: if active in the month of this week, add weekly portion.
         const monthOfPeriodStart = startOfMonth(periodStart);
-        const monthOfPeriodEnd = endOfMonth(periodStart); // week is within one month
+        // const monthOfPeriodEnd = endOfMonth(periodStart); 
          if (subStartDate <= periodEnd && isWithinInterval(monthOfPeriodStart, {start: subStartDate, end: addYears(subStartDate, 100)}) ) {
             const daysInMonth = getDaysInMonth(monthOfPeriodStart);
-            const weeklyRate = (amountInDefault / daysInMonth) * 7; // approximate weekly rate
-            
-            // More precise: count overlapping days
             const weekDays = eachDayOfInterval({start: periodStart, end: periodEnd});
             let activeDaysInWeek = 0;
             weekDays.forEach(day => {
@@ -104,7 +94,7 @@ export function ReportChart({ period, date }: ReportChartProps) {
       }
       
       if (subContribution > 0) {
-         const categoryIdToUse = sub.categoryId || subscriptionsCategoryId; // Use sub's category or default
+         const categoryIdToUse = sub.categoryId || subscriptionsCategoryId; 
          aggregatedData[categoryIdToUse] = (aggregatedData[categoryIdToUse] || 0) + subContribution;
       }
     });
@@ -132,7 +122,7 @@ export function ReportChart({ period, date }: ReportChartProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl font-headline">{getTitle()}</CardTitle>
+           <Skeleton className="h-7 w-3/4" /> {/* Title Skeleton */}
         </CardHeader>
         <CardContent className="h-[350px] flex items-center justify-center">
           <Skeleton className="h-full w-full" />
@@ -181,7 +171,6 @@ export function ReportChart({ period, date }: ReportChartProps) {
                 contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)'}}
                 labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 'bold' }}
                 formatter={(value: number, name: string, props) => {
-                    // The key for 'valueInDefaultCurrency' is what recharts uses internally from Bar dataKey
                     const configKey = props.dataKey as keyof typeof chartConfig; 
                     const label = chartConfig[configKey]?.label || name;
                     return [formatCurrency(value, defaultCurrency), label];
