@@ -162,12 +162,12 @@ export function SettingsTab() {
         <Separator />
         {/* Data Management Skeleton */}
         <section>
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-baseline gap-2 mb-4">
             <Skeleton className="h-9 w-1/2" /> {/* "Data Management" title */}
             <Skeleton className="h-6 w-28" /> {/* "Danger Zone" */}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card className="shadow-md">
+            <Card className="shadow-md border-destructive">
               <CardHeader>
                 <Skeleton className="h-6 w-3/4 mb-2" /> 
                 <Skeleton className="h-4 w-full" /> 
@@ -176,7 +176,7 @@ export function SettingsTab() {
                 <Skeleton className="h-10 w-48 rounded-lg" /> 
               </CardContent>
             </Card>
-            <Card className="shadow-md">
+            <Card className="shadow-md border-destructive">
               <CardHeader>
                 <Skeleton className="h-6 w-3/4 mb-2" /> 
                 <Skeleton className="h-4 w-full" /> 
@@ -185,7 +185,7 @@ export function SettingsTab() {
                 <Skeleton className="h-10 w-56 rounded-lg" /> 
               </CardContent>
             </Card>
-            <Card className="shadow-md">
+            <Card className="shadow-md border-destructive">
               <CardHeader>
                 <Skeleton className="h-6 w-3/4 mb-2" /> 
                 <Skeleton className="h-4 w-full" /> 
@@ -273,7 +273,7 @@ export function SettingsTab() {
       <Separator />
 
       <section>
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-baseline gap-2 mb-4">
           <h2 className="text-2xl font-semibold font-headline">Data Management</h2>
           <span className="text-destructive font-semibold flex items-center">
             <AlertTriangle className="mr-1 h-5 w-5" />
