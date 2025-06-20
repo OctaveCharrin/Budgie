@@ -48,10 +48,5 @@
     "id": "tech",
     "name": "Tech",
     "icon": "Laptop"
-  },
-  {
-    "id": "9eb600af-4c69-4761-9c2b-21e873c0e2a8",
-    "name": "hello",
-    "icon": "DollarSign"
   }
 ]

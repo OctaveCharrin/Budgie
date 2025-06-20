@@ -5,7 +5,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis, Toolti
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ChartConfig } from "@/components/ui/chart"; 
 import { useData } from "@/contexts/data-context";
-import type { ReportPeriod, ChartDataPoint, CurrencyCode } from "@/lib/types";
+import type { ReportPeriod, ChartDataPoint, CurrencyCode, Category } from "@/lib/types";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, eachMonthOfInterval, isWithinInterval, parseISO, addYears } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
@@ -17,7 +17,7 @@ interface ReportChartProps {
 }
 
 export function ReportChart({ period, date }: ReportChartProps) {
-  const { expenses, subscriptions, getCategoryById, isLoading, settings, getAmountInDefaultCurrency } = useData();
+  const { expenses, subscriptions, getCategoryById, isLoading, settings, getAmountInDefaultCurrency, categories } = useData();
   const defaultCurrency = settings.defaultCurrency;
 
   const chartConfig = {
@@ -184,3 +184,4 @@ export function ReportChart({ period, date }: ReportChartProps) {
     </Card>
   );
 }
+
