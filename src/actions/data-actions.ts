@@ -240,6 +240,10 @@ export async function getSubscriptionsAction(): Promise<Subscription[]> {
 export async function addSubscriptionAction(
   subscriptionData: Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode }
 ): Promise<Subscription> {
+  if (!subscriptionData.categoryId || typeof subscriptionData.categoryId !== 'string' || subscriptionData.categoryId.trim() === '') {
+    console.error("addSubscriptionAction: categoryId is missing or invalid.", subscriptionData);
+    throw new Error('Subscription categoryId is missing or invalid.');
+  }
   const db = await getDb();
   const amounts = await convertAmountToAllCurrencies(subscriptionData.originalAmount, subscriptionData.originalCurrency);
   const newSubscriptionId = generateId();
@@ -265,6 +269,10 @@ export async function addSubscriptionAction(
 }
 
 export async function updateSubscriptionAction(updatedSubscriptionData: Subscription): Promise<Subscription> {
+  if (!updatedSubscriptionData.categoryId || typeof updatedSubscriptionData.categoryId !== 'string' || updatedSubscriptionData.categoryId.trim() === '') {
+    console.error("updateSubscriptionAction: categoryId is missing or invalid.", updatedSubscriptionData);
+    throw new Error('Subscription categoryId is missing or invalid for update.');
+  }
   const db = await getDb();
   const existingSubRow = await db.get('SELECT originalAmount, originalCurrency FROM subscriptions WHERE id = ?', updatedSubscriptionData.id);
   
@@ -305,3 +313,4 @@ export async function deleteSubscriptionAction(id: string): Promise<{ success: b
   await db.run('DELETE FROM subscriptions WHERE id = ?', id);
   return { success: true };
 }
+
