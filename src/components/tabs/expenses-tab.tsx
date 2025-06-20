@@ -12,12 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { format, parseISO } from "date-fns";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const SELECT_ALL_CATEGORIES_VALUE = "__ALL_CATEGORIES__";
 
 export function ExpensesTab() {
-  const { expenses, categories, getCategoryById } = useData();
+  const { expenses, categories, getCategoryById, isLoading } = useData();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
@@ -55,6 +55,25 @@ export function ExpensesTab() {
           return new Date(b.date).getTime() - new Date(a.date).getTime();
       }
     });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 p-1">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+          <Skeleton className="h-9 w-48" />
+          <Skeleton className="h-10 w-36 sm:w-auto" />
+        </div>
+        <div className="flex flex-col sm:flex-row gap-4 my-4">
+          <Skeleton className="h-10 flex-grow" />
+          <Skeleton className="h-10 w-full sm:w-[180px]" />
+          <Skeleton className="h-10 w-full sm:w-[180px]" />
+        </div>
+        <div className="space-y-4 pr-3">
+          {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-1">
@@ -107,7 +126,7 @@ export function ExpensesTab() {
       </div>
 
       {filteredAndSortedExpenses.length > 0 ? (
-        <ScrollArea className="h-[calc(100vh_-_20rem)]"> {/* Adjust height as needed */}
+        <ScrollArea className="h-[calc(100vh_-_20rem)]"> 
           <div className="space-y-4 pr-3">
             {filteredAndSortedExpenses.map(expense => (
               <ExpenseListItem key={expense.id} expense={expense} onEdit={handleEdit} />

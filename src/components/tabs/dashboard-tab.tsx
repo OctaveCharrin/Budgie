@@ -4,17 +4,18 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, TrendingUp, Wallet } from "lucide-react";
+import { PlusCircle, TrendingUp, Wallet, RefreshCcw } from "lucide-react";
 import { useData } from "@/contexts/data-context";
 import { ExpenseForm } from "@/components/forms/expense-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ExpenseListItem } from "@/components/list-items/expense-list-item";
 import type { Expense } from "@/lib/types";
-import { format, startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO, addYears } from 'date-fns';
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function DashboardTab() {
-  const { expenses, subscriptions } = useData();
+  const { expenses, subscriptions, isLoading } = useData();
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | undefined>(undefined);
 
@@ -23,6 +24,8 @@ export function DashboardTab() {
   const [percentageChange, setPercentageChange] = useState(0);
 
   useEffect(() => {
+    if (isLoading) return;
+
     const now = new Date();
     const currentMonthStart = startOfMonth(now);
     const currentMonthEnd = endOfMonth(now);
@@ -38,9 +41,8 @@ export function DashboardTab() {
       });
       subscriptions.forEach(sub => {
         const subStartDate = parseISO(sub.startDate);
-         // if subscription is active during any part of this month
-        if (subStartDate <= end && isWithinInterval(start, {start: subStartDate, end: addYears(subStartDate, 100)}) ) {
-             total += sub.amount;
+        if (subStartDate <= end && isWithinInterval(start, { start: subStartDate, end: addYears(subStartDate, 100) })) {
+          total += sub.amount;
         }
       });
       return total;
@@ -55,12 +57,12 @@ export function DashboardTab() {
     if (previousTotal > 0) {
       setPercentageChange(((currentTotal - previousTotal) / previousTotal) * 100);
     } else if (currentTotal > 0) {
-      setPercentageChange(100); // Infinite increase if last month was 0
+      setPercentageChange(100);
     } else {
       setPercentageChange(0);
     }
 
-  }, [expenses, subscriptions]);
+  }, [expenses, subscriptions, isLoading]);
 
 
   const recentExpenses = [...expenses]
@@ -76,6 +78,44 @@ export function DashboardTab() {
     setIsAddExpenseOpen(false);
     setEditingExpense(undefined);
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6 p-1">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Spent (This Month)</CardTitle>
+              <Wallet className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-3/4 mb-1" />
+              <Skeleton className="h-4 w-1/2" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Subscriptions</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-3/4 mb-1" />
+              <Skeleton className="h-4 w-1/2" />
+            </CardContent>
+          </Card>
+          <div className="lg:col-span-1 md:col-span-2 flex items-center justify-center p-6">
+            <Skeleton className="h-12 w-full rounded-lg" />
+          </div>
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold mb-3 font-headline">Recent Expenses</h2>
+          <div className="space-y-3 pr-3">
+            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
 
   return (
@@ -111,12 +151,12 @@ export function DashboardTab() {
             <p className="text-xs text-muted-foreground">{subscriptions.length} active subscriptions</p>
           </CardContent>
         </Card>
-        <div className="lg:col-span-1 md:col-span-2 flex items-center justify-center p-6">
+        <div className="lg:col-span-1 md:col-span-2 flex items-center justify-center p-2 sm:p-6">
            <Dialog open={isAddExpenseOpen} onOpenChange={(isOpen) => {
              if (!isOpen) closeDialogAndReset(); else setIsAddExpenseOpen(true);
            }}>
             <DialogTrigger asChild>
-              <Button size="lg" className="w-full text-lg bg-accent hover:bg-accent/90 text-accent-foreground border-2 border-accent-foreground/30 hover:border-accent-foreground/50">
+              <Button size="lg" className="w-full text-lg bg-accent hover:bg-accent/90 text-accent-foreground">
                 <PlusCircle className="mr-2 h-6 w-6" /> Add New Expense
               </Button>
             </DialogTrigger>
@@ -141,18 +181,11 @@ export function DashboardTab() {
             </div>
           </ScrollArea>
         ) : (
-          <p className="text-muted-foreground">No recent expenses. Add one to get started!</p>
+          <div className="text-center py-10">
+            <p className="text-muted-foreground">No recent expenses. Add one to get started!</p>
+          </div>
         )}
       </div>
     </div>
   );
 }
-
-// Helper function, assuming addYears exists or you implement it.
-// For simplicity, I will add it here. In a real app, use date-fns' addYears.
-function addYears(date: Date, years: number): Date {
-  const newDate = new Date(date);
-  newDate.setFullYear(newDate.getFullYear() + years);
-  return newDate;
-}
-

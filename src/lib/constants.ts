@@ -13,8 +13,9 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'tech', name: 'Tech', icon: 'Laptop' },
 ];
 
-export const LOCAL_STORAGE_KEYS = {
-  expenses: 'trackright-expenses',
-  subscriptions: 'trackright-subscriptions',
-  categories: 'trackright-categories',
+// Changed from LOCAL_STORAGE_KEYS to DATA_FILE_PATHS
+export const DATA_FILE_PATHS = {
+  expenses: 'expenses.json',
+  subscriptions: 'subscriptions.json',
+  categories: 'categories.json',
 };

@@ -12,11 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const SELECT_ALL_CATEGORIES_VALUE = "__ALL_CATEGORIES__";
 
 export function SubscriptionsTab() {
-  const { subscriptions, categories, getCategoryById } = useData();
+  const { subscriptions, categories, getCategoryById, isLoading } = useData();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState<Subscription | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
@@ -53,6 +54,24 @@ export function SubscriptionsTab() {
       }
     });
 
+  if (isLoading) {
+     return (
+      <div className="space-y-6 p-1">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+          <Skeleton className="h-9 w-56" />
+          <Skeleton className="h-10 w-40 sm:w-auto" />
+        </div>
+        <div className="flex flex-col sm:flex-row gap-4 my-4">
+          <Skeleton className="h-10 flex-grow" />
+          <Skeleton className="h-10 w-full sm:w-[180px]" />
+          <Skeleton className="h-10 w-full sm:w-[180px]" />
+        </div>
+        <div className="space-y-4 pr-3">
+          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-1">
@@ -106,7 +125,7 @@ export function SubscriptionsTab() {
 
 
       {filteredAndSortedSubscriptions.length > 0 ? (
-         <ScrollArea className="h-[calc(100vh_-_20rem)]"> {/* Adjust height as needed */}
+         <ScrollArea className="h-[calc(100vh_-_20rem)]"> 
           <div className="space-y-4 pr-3">
             {filteredAndSortedSubscriptions.map(subscription => (
               <SubscriptionListItem key={subscription.id} subscription={subscription} onEdit={handleEdit} />

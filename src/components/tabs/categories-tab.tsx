@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -9,9 +10,10 @@ import { CategoryListItem } from "@/components/list-items/category-list-item";
 import type { Category } from "@/lib/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function CategoriesTab() {
-  const { categories } = useData();
+  const { categories, isLoading } = useData();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | undefined>(undefined);
 
@@ -26,6 +28,20 @@ export function CategoriesTab() {
   };
 
   const sortedCategories = [...categories].sort((a,b) => a.name.localeCompare(b.name));
+
+  if (isLoading) {
+    return (
+       <div className="space-y-6 p-1">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-9 w-48" />
+          <Skeleton className="h-10 w-36" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pr-3">
+          {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-20 w-full rounded-lg" />)}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-1">
@@ -47,7 +63,7 @@ export function CategoriesTab() {
       </div>
 
       {sortedCategories.length > 0 ? (
-        <ScrollArea className="h-[calc(100vh_-_15rem)]"> {/* Adjust height as needed */}
+        <ScrollArea className="h-[calc(100vh_-_15rem)]">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pr-3">
             {sortedCategories.map(category => (
               <CategoryListItem key={category.id} category={category} onEdit={handleEdit} />

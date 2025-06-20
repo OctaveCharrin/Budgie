@@ -1,15 +1,17 @@
+
 "use client";
 
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ChartConfig } from "@/components/ui/chart"; // Using existing ChartConfig type if suitable
+import type { ChartConfig } from "@/components/ui/chart"; 
 import { useData } from "@/contexts/data-context";
 import type { ReportPeriod, ChartDataPoint } from "@/lib/types";
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, eachDayOfInterval, eachWeekOfInterval, eachMonthOfInterval, subDays, subWeeks, subMonths, subYears, isWithinInterval, parseISO } from "date-fns";
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, eachMonthOfInterval, isWithinInterval, parseISO, addYears } from "date-fns";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ReportChartProps {
   period: ReportPeriod;
-  date: Date; // Selected date to determine the range
+  date: Date; 
 }
 
 const chartConfig = {
@@ -21,9 +23,11 @@ const chartConfig = {
 
 
 export function ReportChart({ period, date }: ReportChartProps) {
-  const { expenses, subscriptions, getCategoryById } = useData();
+  const { expenses, subscriptions, getCategoryById, isLoading } = useData();
 
   const calculateReportData = (): ChartDataPoint[] => {
+    if (isLoading) return [];
+
     let startDate: Date, endDate: Date;
 
     switch (period) {
@@ -47,18 +51,14 @@ export function ReportChart({ period, date }: ReportChartProps) {
 
     const relevantSubscriptions = subscriptions.filter(sub => {
       const subStartDate = parseISO(sub.startDate);
-      // Subscription is active if it started before or during the period's end
       return subStartDate <= endDate;
     });
     
-    // Add monthly subscription amounts for the period
-    // For simplicity, if a subscription is active in a month, its full amount is added to that month.
-    // This logic can be refined for weekly/daily views if needed.
     const subscriptionExpensesForPeriod: { categoryId: string; amount: number }[] = [];
 
     if (period === 'monthly') {
         relevantSubscriptions.forEach(sub => {
-            if (isWithinInterval(startOfMonth(date), {start: parseISO(sub.startDate), end: endOfMonth(addYears(parseISO(sub.startDate), 100))} ) ) { // check if sub is active in current month
+            if (isWithinInterval(startOfMonth(date), {start: parseISO(sub.startDate), end: endOfMonth(addYears(parseISO(sub.startDate), 100))} ) ) { 
                  subscriptionExpensesForPeriod.push({ categoryId: sub.categoryId, amount: sub.amount });
             }
         });
@@ -71,18 +71,15 @@ export function ReportChart({ period, date }: ReportChartProps) {
                 }
             });
         });
-    } else { // weekly - for simplicity, add pro-rata amount. This can be complex. Let's add full if it falls in the month of the week.
+    } else { 
         relevantSubscriptions.forEach(sub => {
              if (isWithinInterval(startOfMonth(date), {start: parseISO(sub.startDate), end: endOfMonth(addYears(parseISO(sub.startDate), 100))} ) ) {
-                 // crude approximation for weekly: 1/4th of monthly
                  subscriptionExpensesForPeriod.push({ categoryId: sub.categoryId, amount: sub.amount / 4 });
             }
         });
     }
 
-
     const allPeriodExpenses = [...relevantExpenses, ...subscriptionExpensesForPeriod];
-
     const aggregatedData: { [categoryId: string]: number } = {};
     allPeriodExpenses.forEach(item => {
       aggregatedData[item.categoryId] = (aggregatedData[item.categoryId] || 0) + item.amount;
@@ -91,7 +88,7 @@ export function ReportChart({ period, date }: ReportChartProps) {
     return Object.entries(aggregatedData).map(([categoryId, total]) => ({
       name: getCategoryById(categoryId)?.name || "Uncategorized",
       total,
-    })).sort((a,b) => b.total - a.total); // Sort by total descending
+    })).sort((a,b) => b.total - a.total);
   };
 
   const data = calculateReportData();
@@ -105,6 +102,19 @@ export function ReportChart({ period, date }: ReportChartProps) {
       case 'yearly':
         return `Yearly Report: ${format(date, "yyyy")}`;
     }
+  }
+  
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl font-headline">{getTitle()}</CardTitle>
+        </CardHeader>
+        <CardContent className="h-[350px] flex items-center justify-center">
+          <Skeleton className="h-full w-full" />
+        </CardContent>
+      </Card>
+    );
   }
 
   if (data.length === 0) {
