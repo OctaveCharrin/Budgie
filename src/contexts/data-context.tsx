@@ -6,7 +6,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import type { Expense, Subscription, Category } from '@/lib/types';
 import { DEFAULT_CATEGORIES } from '@/lib/constants';
 import {
-  getCategoriesAction, addCategoryAction, updateCategoryAction, deleteCategoryAction,
+  getCategoriesAction, addCategoryAction, updateCategoryAction, deleteCategoryAction, resetCategoriesAction,
   getExpensesAction, addExpenseAction, updateExpenseAction, deleteExpenseAction, deleteAllExpensesAction,
   getSubscriptionsAction, addSubscriptionAction, updateSubscriptionAction, deleteSubscriptionAction
 } from '@/actions/data-actions';
@@ -29,7 +29,8 @@ interface DataContextProps {
   setCategories: (categories: Category[] | ((val: Category[]) => Category[])) => void;
   addCategory: (category: Omit<Category, 'id'>) => Promise<void>;
   updateCategory: (category: Category) => Promise<void>;
-  deleteCategory: (id: string) => Promise<void>; // Returns void now, success/failure handled by toast
+  deleteCategory: (id: string) => Promise<void>;
+  resetCategories: () => Promise<void>;
   getCategoryById: (id: string) => Category | undefined;
   isLoading: boolean;
 }
@@ -103,11 +104,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const deleteAllExpenses = async () => {
     try {
       await deleteAllExpensesAction();
-      setExpenses([]); // Clear local state
+      setExpenses([]); 
     } catch (error) {
       console.error("Failed to delete all expenses:", error);
       toast({ variant: "destructive", title: "Error", description: "Could not delete all expenses." });
-      throw error; // Re-throw to be caught by caller if needed
+      throw error; 
     }
   };
 
@@ -166,14 +167,23 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       const { success } = await deleteCategoryAction(id);
       if (success) {
         setCategories(prev => prev.filter(cat => cat.id !== id));
-        // No need to update expenses/subscriptions here, display logic handles uncategorized items
       } else {
-        // This case should ideally not be hit if action always returns true or throws
         toast({ variant: "destructive", title: "Deletion Failed", description: "Category could not be deleted." });
       }
     } catch (error) {
       console.error("Failed to delete category:", error);
       toast({ variant: "destructive", title: "Error", description: "Could not delete category." });
+    }
+  };
+
+  const resetCategories = async (): Promise<void> => {
+    try {
+      const defaultCategories = await resetCategoriesAction();
+      setCategories(defaultCategories);
+    } catch (error) {
+      console.error("Failed to reset categories:", error);
+      toast({ variant: "destructive", title: "Error", description: "Could not reset categories." });
+      throw error; // Re-throw to be caught by caller if needed for specific error handling
     }
   };
   
@@ -183,7 +193,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     <DataContext.Provider value={{
       expenses, setExpenses, addExpense, updateExpense, deleteExpense, deleteAllExpenses,
       subscriptions, setSubscriptions, addSubscription, updateSubscription, deleteSubscription,
-      categories, setCategories, addCategory, updateCategory, deleteCategory,
+      categories, setCategories, addCategory, updateCategory, deleteCategory, resetCategories,
       getCategoryById,
       isLoading
     }}>
@@ -199,3 +209,5 @@ export const useData = (): DataContextProps => {
   }
   return context;
 };
+
+    

@@ -33,11 +33,14 @@ export async function updateCategoryAction(updatedCategory: Category): Promise<C
 
 export async function deleteCategoryAction(id: string): Promise<{ success: boolean }> {
   let categories = await getCategoriesAction();
-  // No longer check if category is in use, allow deletion.
-  // Expenses/subscriptions referencing this category will be handled at display time.
   categories = categories.filter(cat => cat.id !== id);
   await writeData(DATA_FILE_PATHS.categories, categories);
-  return { success: true }; // Always success if no error occurs during file write
+  return { success: true }; 
+}
+
+export async function resetCategoriesAction(): Promise<Category[]> {
+  await writeData(DATA_FILE_PATHS.categories, DEFAULT_CATEGORIES);
+  return DEFAULT_CATEGORIES;
 }
 
 // Expense Actions
@@ -104,3 +107,5 @@ export async function deleteSubscriptionAction(id: string): Promise<{ success: b
   await writeData(DATA_FILE_PATHS.subscriptions, subscriptions);
   return { success: true };
 }
+
+    

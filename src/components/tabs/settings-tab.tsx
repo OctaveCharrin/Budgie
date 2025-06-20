@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Trash2 } from "lucide-react";
+import { PlusCircle, Trash2, RotateCcw } from "lucide-react";
 import { useData } from "@/contexts/data-context";
 import { CategoryForm } from "@/components/forms/category-form";
 import { CategoryListItem } from "@/components/list-items/category-list-item";
@@ -23,15 +23,14 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
 
 export function SettingsTab() {
-  // Category Management State & Logic
-  const { categories, isLoading: isDataLoading, deleteAllExpenses } = useData();
+  const { categories, isLoading: isDataLoading, deleteAllExpenses, resetCategories: resetCategoriesContext } = useData();
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | undefined>(undefined);
-
-  // Delete All Expenses State & Logic
   const [isDeleteExpensesAlertOpen, setIsDeleteExpensesAlertOpen] = useState(false);
+  const [isResetCategoriesAlertOpen, setIsResetCategoriesAlertOpen] = useState(false);
   const { toast } = useToast();
 
   const handleEditCategory = (category: Category) => {
@@ -55,6 +54,16 @@ export function SettingsTab() {
     }
     setIsDeleteExpensesAlertOpen(false);
   };
+
+  const handleResetCategories = async () => {
+    try {
+      await resetCategoriesContext();
+      toast({ title: "Success", description: "Categories have been reset to default." });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Could not reset categories." });
+    }
+    setIsResetCategoriesAlertOpen(false);
+  };
   
   if (isDataLoading) {
     return (
@@ -70,7 +79,17 @@ export function SettingsTab() {
               <Skeleton className="h-10 w-48" />
             </CardContent>
           </Card>
+           <Card className="mt-4">
+            <CardHeader>
+              <CardTitle><Skeleton className="h-6 w-1/3 mb-1" /></CardTitle>
+              <CardDescription><Skeleton className="h-4 w-full" /></CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-10 w-48" />
+            </CardContent>
+          </Card>
         </section>
+        <Separator />
         <section>
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold font-headline"><Skeleton className="h-9 w-48" /></h2>
@@ -87,46 +106,83 @@ export function SettingsTab() {
 
   return (
     <div className="space-y-8 p-1">
-      {/* Section 1: Data Management */}
       <section>
         <h2 className="text-2xl font-semibold font-headline mb-4">Data Management</h2>
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle>Delete All Expenses</CardTitle>
-            <CardDescription>
-              This action will permanently delete all your recorded expenses. This cannot be undone.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AlertDialog open={isDeleteExpensesAlertOpen} onOpenChange={setIsDeleteExpensesAlertOpen}>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
-                  <Trash2 className="mr-2 h-4 w-4" /> Delete All Expenses
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete all expense data. This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDeleteAllExpenses}
-                    className="bg-destructive hover:bg-destructive/90"
-                  >
-                    Yes, delete all expenses
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle>Delete All Expenses</CardTitle>
+              <CardDescription>
+                Permanently delete all your recorded expenses. This action cannot be undone.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AlertDialog open={isDeleteExpensesAlertOpen} onOpenChange={setIsDeleteExpensesAlertOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                    <Trash2 className="mr-2 h-4 w-4" /> Delete All Expenses
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete all expense data. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteAllExpenses}
+                      className="bg-destructive hover:bg-destructive/90"
+                    >
+                      Yes, delete all expenses
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle>Reset Categories</CardTitle>
+              <CardDescription>
+                Reset all categories to the application defaults. Custom categories will be removed. This action cannot be undone.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AlertDialog open={isResetCategoriesAlertOpen} onOpenChange={setIsResetCategoriesAlertOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                    <RotateCcw className="mr-2 h-4 w-4" /> Reset Categories to Default
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure you want to reset categories?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will replace all current categories with the default set. Any expenses or subscriptions linked to custom categories will become uncategorized. This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleResetCategories}
+                      className="bg-destructive hover:bg-destructive/90"
+                    >
+                      Yes, reset categories
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
+        </div>
       </section>
 
-      {/* Section 2: Manage Categories */}
+      <Separator />
+
       <section>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-semibold font-headline">Manage Categories</h2>
@@ -153,10 +209,12 @@ export function SettingsTab() {
           </div>
         ) : (
           <div className="text-center py-10">
-              <p className="text-muted-foreground">No categories found. Add one to get started!</p>
+              <p className="text-muted-foreground">No categories found. Add one to get started or reset to defaults.</p>
           </div>
         )}
       </section>
     </div>
   );
 }
+
+    
