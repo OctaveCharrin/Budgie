@@ -67,7 +67,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
       : { 
           name: "",
           startDate: new Date(), 
-          originalAmount: undefined, 
+          originalAmount: '' as unknown as number, // Initialize with empty string
           originalCurrency: settings.defaultCurrency, 
           description: "",
           categoryId: ""
@@ -75,11 +75,11 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
   });
 
   useEffect(() => {
-    if (!subscription && !isDataLoading) {
+    if (!subscription && !isDataLoading && settings.defaultCurrency) {
       form.reset({ 
         name: "",
         startDate: new Date(), 
-        originalAmount: undefined, 
+        originalAmount: '' as unknown as number, // Reset with empty string
         originalCurrency: settings.defaultCurrency, 
         description: "",
         categoryId: ""
@@ -110,7 +110,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
         originalCurrency: values.originalCurrency,
         description: values.description,
       };
-      await addSubscription(newSubscriptionData as Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode });
+      await addSubscription(newSubscriptionData as Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode; name: string; categoryId: string; startDate: string; description?: string; });
       toast({ title: "Subscription Added", description: "New subscription has been successfully added." });
     }
     onSave();
@@ -118,7 +118,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
         name: "",
         startDate: new Date(), 
         categoryId: '', 
-        originalAmount: undefined, 
+        originalAmount: '' as unknown as number, // Reset with empty string
         originalCurrency: settings.defaultCurrency, 
         description: '' 
     });
@@ -134,7 +134,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
             <FormItem>
               <FormLabel>Subscription Name</FormLabel>
               <FormControl>
-                <Input placeholder="e.g., Netflix, Gym Membership" {...field} />
+                <Input placeholder="e.g., Netflix, Gym Membership" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -188,7 +188,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
                 <FormItem className="flex-grow">
                 <FormLabel>Monthly Amount</FormLabel>
                 <FormControl>
-                    <Input type="number" placeholder="0.00" {...field} step="0.01" />
+                    <Input type="number" placeholder="0.00" {...field} step="0.01" value={field.value === undefined || isNaN(field.value) ? '' : field.value} />
                 </FormControl>
                 <FormMessage />
                 </FormItem>
@@ -200,7 +200,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
             render={({ field }) => (
                 <FormItem className="w-[120px]">
                 <FormLabel>Currency</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value || settings.defaultCurrency}>
                     <FormControl>
                     <SelectTrigger>
                         <SelectValue placeholder="Currency" />
@@ -226,7 +226,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
           render={({ field }) => (
             <FormItem>
               <FormLabel>Category</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value || ""}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a category" />
@@ -252,7 +252,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
             <FormItem>
               <FormLabel>Description (Optional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="e.g., Premium plan" {...field} />
+                <Textarea placeholder="e.g., Premium plan" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>

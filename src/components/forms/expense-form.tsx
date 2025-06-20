@@ -31,7 +31,7 @@ import type { Expense, CurrencyCode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { SUPPORTED_CURRENCIES } from "@/lib/constants";
-import { useEffect } from "react"; // Added useEffect import
+import { useEffect } from "react";
 
 const formSchema = z.object({
   date: z.date({ required_error: "Date is required." }),
@@ -64,7 +64,7 @@ export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
         }
       : { 
           date: new Date(), 
-          originalAmount: undefined, 
+          originalAmount: '' as unknown as number, // Initialize with empty string
           originalCurrency: settings.defaultCurrency, 
           description: "",
           categoryId: ""
@@ -73,10 +73,10 @@ export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
 
   // Update default currency if settings change and it's a new expense form
   useEffect(() => {
-    if (!expense && !isDataLoading) {
+    if (!expense && !isDataLoading && settings.defaultCurrency) {
       form.reset({ 
         date: new Date(), 
-        originalAmount: undefined, 
+        originalAmount: '' as unknown as number, // Reset with empty string
         originalCurrency: settings.defaultCurrency, 
         description: "",
         categoryId: ""
@@ -113,7 +113,7 @@ export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
     form.reset({ 
         date: new Date(), 
         categoryId: '', 
-        originalAmount: undefined, 
+        originalAmount: '' as unknown as number, // Reset with empty string
         originalCurrency: settings.defaultCurrency, 
         description: '' 
     });
@@ -169,7 +169,7 @@ export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
                 <FormItem className="flex-grow">
                 <FormLabel>Amount</FormLabel>
                 <FormControl>
-                    <Input type="number" placeholder="0.00" {...field} step="0.01" />
+                    <Input type="number" placeholder="0.00" {...field} step="0.01" value={field.value === undefined || isNaN(field.value) ? '' : field.value} />
                 </FormControl>
                 <FormMessage />
                 </FormItem>
@@ -181,7 +181,7 @@ export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
             render={({ field }) => (
                 <FormItem className="w-[120px]">
                 <FormLabel>Currency</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value || settings.defaultCurrency}>
                     <FormControl>
                     <SelectTrigger>
                         <SelectValue placeholder="Currency" />
@@ -207,7 +207,7 @@ export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Category</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value || ""}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a category" />
@@ -233,7 +233,7 @@ export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
             <FormItem>
               <FormLabel>Description (Optional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="e.g., Lunch with colleagues" {...field} />
+                <Textarea placeholder="e.g., Lunch with colleagues" {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
