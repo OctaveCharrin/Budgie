@@ -1,13 +1,13 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ReportChart } from "@/components/report-chart";
 import { DailyExpensesLineChart } from "@/components/daily-expenses-line-chart";
-import { WeekdaySpendingBarChart } from "@/components/weekday-spending-bar-chart"; // New import
-import type { ReportPeriod } from "@/lib/types";
+import { WeekdaySpendingBarChart } from "@/components/weekday-spending-bar-chart";
+import type { ReportPeriod, OverallPeriodMetrics, DailyTotalDataPoint, CategoryBreakdownPoint } from "@/lib/types";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, ChevronLeft, ChevronRight, Wallet, TrendingUp, BarChart2 } from "lucide-react";
@@ -16,26 +16,61 @@ import {
   addMonths, subMonths, addYears, 
   subYears, startOfWeek, endOfWeek, 
   startOfMonth, endOfMonth, startOfYear, 
-  endOfYear, isWithinInterval, parseISO,
-  getDaysInMonth, isBefore, isEqual, isAfter,
-  eachDayOfInterval, eachMonthOfInterval
+  endOfYear
 } from "date-fns";
 import { cn, formatCurrency } from "@/lib/utils";
-import { useData } from "@/contexts/data-context";
+import { useData } from "@/contexts/data-context"; // For settings.defaultCurrency
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { getOverallPeriodMetrics } from "@/actions/report-actions";
 
+
+const initialReportData: OverallPeriodMetrics = {
+  totalOverallSpending: 0,
+  dailyTotalsArray: [],
+  categoryBreakdownArray: [],
+  weekdayExpenseTotals: Array(7).fill(0),
+  weekdaySubscriptionTotals: Array(7).fill(0),
+  weekdayOccurrences: Array(7).fill(0),
+  dailySpendingByWeekdayForErrorBar: { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] },
+};
 
 export function ReportsTab() {
   const [period, setPeriod] = useState<ReportPeriod>("monthly");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [accumulateDailyExpenses, setAccumulateDailyExpenses] = useState(false);
+  const [reportData, setReportData] = useState<OverallPeriodMetrics>(initialReportData);
+  const [isReportLoading, setIsReportLoading] = useState(true);
 
-  const { expenses, subscriptions, isLoading: isDataContextLoading, settings, getAmountInDefaultCurrency, categories } = useData();
+  const { settings, isLoading: isDataContextLoading } = useData(); // Get defaultCurrency from context
   const defaultCurrency = settings.defaultCurrency;
+
+  const fetchReportData = useCallback(async () => {
+    if (!defaultCurrency || isDataContextLoading) {
+      // Don't fetch if default currency isn't loaded yet or if main data is loading
+      setIsReportLoading(true); // Keep loading state until currency is available
+      return;
+    }
+    setIsReportLoading(true);
+    try {
+      const data = await getOverallPeriodMetrics(period, selectedDate.toISOString(), defaultCurrency);
+      setReportData(data);
+    } catch (error) {
+      console.error("Failed to fetch report metrics:", error);
+      setReportData(initialReportData); // Reset to initial on error
+      // Consider adding a toast notification here
+    } finally {
+      setIsReportLoading(false);
+    }
+  }, [period, selectedDate, defaultCurrency, isDataContextLoading]);
+
+  useEffect(() => {
+    fetchReportData();
+  }, [fetchReportData]);
+
 
   const handleDateChange = (date: Date | undefined) => {
     if (date) {
@@ -71,91 +106,7 @@ export function ReportsTab() {
         return format(selectedDate, "PPP");
     }
   };
-
-  const { totalPeriodSpending, isCalculatingTotal } = useMemo(() => {
-    if (isDataContextLoading || !defaultCurrency || !categories) {
-      return { totalPeriodSpending: null, isCalculatingTotal: true };
-    }
-
-    let reportPeriodStart: Date, reportPeriodEnd: Date;
-    switch (period) {
-      case 'weekly':
-        reportPeriodStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
-        reportPeriodEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
-        break;
-      case 'monthly':
-        reportPeriodStart = startOfMonth(selectedDate);
-        reportPeriodEnd = endOfMonth(selectedDate);
-        break;
-      case 'yearly':
-      default:
-        reportPeriodStart = startOfYear(selectedDate);
-        reportPeriodEnd = endOfYear(selectedDate);
-        break;
-    }
-
-    let currentTotal = 0;
-    expenses.forEach(expense => {
-      if (isWithinInterval(parseISO(expense.date), { start: reportPeriodStart, end: reportPeriodEnd })) {
-        currentTotal += getAmountInDefaultCurrency(expense);
-      }
-    });
-
-    subscriptions.forEach(sub => {
-      const subStartDate = parseISO(sub.startDate);
-      const subEndDate = sub.endDate ? parseISO(sub.endDate) : null;
-      let subContribution = 0;
-      const monthlyAmountInDefault = getAmountInDefaultCurrency(sub);
-
-      if (isAfter(subStartDate, reportPeriodEnd) && !isEqual(subStartDate, reportPeriodEnd)) return;
-
-      if (period === 'monthly') {
-        const isActiveInMonth = 
-          (isEqual(subStartDate, reportPeriodEnd) || isBefore(subStartDate, reportPeriodEnd)) &&
-          (!subEndDate || isEqual(subEndDate, reportPeriodStart) || isAfter(subEndDate, reportPeriodStart));
-        if (isActiveInMonth) subContribution = monthlyAmountInDefault;
-      } else if (period === 'yearly') {
-        const yearMonths = eachMonthOfInterval({ start: reportPeriodStart, end: reportPeriodEnd });
-        yearMonths.forEach(monthInYear => {
-          const monthStart = startOfMonth(monthInYear);
-          const monthEnd = endOfMonth(monthInYear);
-          const isActiveInMonth = 
-            (isEqual(subStartDate, monthEnd) || isBefore(subStartDate, monthEnd)) &&
-            (!subEndDate || isEqual(subEndDate, monthStart) || isAfter(subEndDate, monthStart));
-          if (isActiveInMonth) subContribution += monthlyAmountInDefault;
-        });
-      } else { // weekly
-        const billingMonthForWeekStart = startOfMonth(reportPeriodStart);
-        const billingMonthForWeekEnd = endOfMonth(reportPeriodStart);
-        const isActiveInBillingMonth =
-          (isEqual(subStartDate, billingMonthForWeekEnd) || isBefore(subStartDate, billingMonthForWeekEnd)) &&
-          (!subEndDate || isEqual(subEndDate, billingMonthForWeekStart) || isAfter(subEndDate, billingMonthForWeekStart));
-
-        if (isActiveInBillingMonth) {
-            const daysInBillingMonth = getDaysInMonth(billingMonthForWeekStart);
-            if (daysInBillingMonth > 0) {
-                const dailyRate = monthlyAmountInDefault / daysInBillingMonth;
-                const weekDaysInterval = eachDayOfInterval({start: reportPeriodStart, end: reportPeriodEnd});
-                let activeDaysInWeek = 0;
-                weekDaysInterval.forEach(dayInWeek => {
-                    const dayIsOnOrAfterSubStart = isEqual(dayInWeek, subStartDate) || isAfter(dayInWeek, subStartDate);
-                    const dayIsOnOrBeforeSubEnd = !subEndDate || isEqual(dayInWeek, subEndDate) || isBefore(dayInWeek, subEndDate);
-                    if (dayIsOnOrAfterSubStart && dayIsOnOrBeforeSubEnd) {
-                        activeDaysInWeek++;
-                    }
-                });
-                subContribution = dailyRate * activeDaysInWeek;
-            }
-        }
-      }
-      currentTotal += subContribution;
-    });
-    
-    return { totalPeriodSpending: currentTotal, isCalculatingTotal: false };
-
-  }, [period, selectedDate, expenses, subscriptions, defaultCurrency, isDataContextLoading, getAmountInDefaultCurrency, categories]);
-
-
+  
   const totalCardTitle = useMemo(() => {
     switch (period) {
       case 'weekly':
@@ -169,6 +120,19 @@ export function ReportsTab() {
     }
   }, [period, selectedDate]);
 
+
+  if (isDataContextLoading) { // Still show global loading if core data (like settings) isn't ready
+    return (
+      <div className="space-y-6 p-1">
+        <Skeleton className="h-9 w-48 mb-4" /> {/* Title */}
+        <Skeleton className="h-10 w-full mb-4" /> {/* Controls */}
+        <Skeleton className="h-24 w-full mb-4" /> {/* Total Card */}
+        <Skeleton className="h-80 w-full mb-4" /> {/* Chart Placeholder */}
+        <Skeleton className="h-80 w-full mb-4" /> {/* Chart Placeholder */}
+        <Skeleton className="h-80 w-full" />      {/* Chart Placeholder */}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-1">
@@ -230,11 +194,11 @@ export function ReportsTab() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {isDataContextLoading || isCalculatingTotal || totalPeriodSpending === null ? (
+          {isReportLoading ? (
             <Skeleton className="h-8 w-1/2" />
           ) : (
             <p className="text-3xl font-bold text-primary">
-              {defaultCurrency ? formatCurrency(totalPeriodSpending, defaultCurrency) : 'Loading...'}
+              {defaultCurrency ? formatCurrency(reportData.totalOverallSpending, defaultCurrency) : 'Loading...'}
             </p>
           )}
         </CardContent>
@@ -263,16 +227,20 @@ export function ReportsTab() {
         </CardHeader>
         <CardContent>
           <DailyExpensesLineChart
-            period={period}
-            selectedDate={selectedDate}
+            dailyTotals={reportData.dailyTotalsArray}
             accumulate={accumulateDailyExpenses}
+            isLoading={isReportLoading}
           />
         </CardContent>
       </Card>
 
       <Separator />
       
-      <ReportChart period={period} date={selectedDate} />
+      <ReportChart 
+        categoryBreakdown={reportData.categoryBreakdownArray} 
+        periodTitle={totalCardTitle} // Re-use title from total card for consistency
+        isLoading={isReportLoading}
+      />
 
       <Separator />
 
@@ -284,7 +252,13 @@ export function ReportsTab() {
            </CardTitle>
         </CardHeader>
         <CardContent>
-          <WeekdaySpendingBarChart period={period} selectedDate={selectedDate} />
+          <WeekdaySpendingBarChart 
+            weekdayExpenseTotals={reportData.weekdayExpenseTotals}
+            weekdaySubscriptionTotals={reportData.weekdaySubscriptionTotals}
+            weekdayOccurrences={reportData.weekdayOccurrences}
+            dailySpendingByWeekdayForErrorBar={reportData.dailySpendingByWeekdayForErrorBar}
+            isLoading={isReportLoading}
+          />
         </CardContent>
       </Card>
 

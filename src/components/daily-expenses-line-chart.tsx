@@ -3,113 +3,57 @@
 
 import React, { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts';
-import {
-  format, parseISO, eachDayOfInterval,
-  startOfWeek, endOfWeek,
-  startOfMonth, endOfMonth,
-  startOfYear, endOfYear,
-  isSameDay, getDaysInMonth,
-  isAfter, isEqual, isBefore
-} from 'date-fns';
 import { useData } from '@/contexts/data-context';
 import { formatCurrency } from '@/lib/utils';
-import type { ReportPeriod, Expense, Subscription } from '@/lib/types';
+import type { DailyTotalDataPoint } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import * as RechartsPrimitive from 'recharts';
+
 
 interface DailyExpensesLineChartProps {
-  period: ReportPeriod;
-  selectedDate: Date;
+  dailyTotals: DailyTotalDataPoint[];
   accumulate: boolean;
+  isLoading: boolean;
 }
 
 interface ChartData {
-  date: string; // Formatted date for display
+  date: string; // Formatted display date
   amount: number;
 }
 
 
-export function DailyExpensesLineChart({ period, selectedDate, accumulate }: DailyExpensesLineChartProps) {
-  const { expenses, subscriptions, settings, isLoading: isDataContextLoading, getAmountInDefaultCurrency } = useData();
+export function DailyExpensesLineChart({ dailyTotals, accumulate, isLoading }: DailyExpensesLineChartProps) {
+  const { settings } = useData(); // Only need settings for defaultCurrency
   const defaultCurrency = settings.defaultCurrency;
 
-
   const { chartData, totalAverageForPeriod } = useMemo(() => {
-    if (isDataContextLoading || !defaultCurrency) return { chartData: [], totalAverageForPeriod: 0 };
+    if (isLoading || !defaultCurrency || !dailyTotals) return { chartData: [], totalAverageForPeriod: 0 };
 
-    let periodStart: Date, periodEnd: Date;
+    const processedTotals = dailyTotals.map(item => ({
+        date: item.displayDate, // Use the pre-formatted displayDate
+        amount: item.amount
+    }));
 
-    switch (period) {
-      case 'weekly':
-        periodStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
-        periodEnd = endOfWeek(selectedDate, { weekStartsOn: 1 });
-        break;
-      case 'monthly':
-        periodStart = startOfMonth(selectedDate);
-        periodEnd = endOfMonth(selectedDate);
-        break;
-      case 'yearly':
-      default:
-        periodStart = startOfYear(selectedDate);
-        periodEnd = endOfYear(selectedDate);
-        break;
-    }
+    let finalChartData: ChartData[] = [...processedTotals];
+    let rawDailyAmounts: number[] = processedTotals.map(item => item.amount);
 
-    const daysInPeriod = eachDayOfInterval({ start: periodStart, end: periodEnd });
-    let rawDailyAmounts: number[] = [];
-
-    let dailyTotals: ChartData[] = daysInPeriod.map(day => {
-      let totalForDay = 0;
-
-      expenses.forEach(expense => {
-        if (isSameDay(parseISO(expense.date), day)) {
-          totalForDay += getAmountInDefaultCurrency(expense);
-        }
-      });
-
-      subscriptions.forEach(sub => {
-        const subStartDate = parseISO(sub.startDate);
-        const subEndDate = sub.endDate ? parseISO(sub.endDate) : null;
-        const isSubscriptionActiveToday =
-          (isEqual(day, subStartDate) || isAfter(day, subStartDate)) &&
-          (!subEndDate || isEqual(day, subEndDate) || isBefore(day, subEndDate));
-
-        if (isSubscriptionActiveToday) {
-          const monthlyAmount = getAmountInDefaultCurrency(sub);
-          const daysInCurrentBillingMonth = getDaysInMonth(day);
-          if (daysInCurrentBillingMonth > 0) {
-            totalForDay += monthlyAmount / daysInCurrentBillingMonth;
-          }
-        }
-      });
-
-      rawDailyAmounts.push(totalForDay);
-
-      let dateFormat = "MMM d";
-      if (period === 'yearly' && daysInPeriod.length > 60) dateFormat = "MMM";
-      else if (period === 'yearly' && daysInPeriod.length <= 60) dateFormat = "MMM d";
-      else if (period === 'monthly') dateFormat = "d";
-
-      return { date: format(day, dateFormat), amount: totalForDay };
-    });
-
-    let finalChartData = [...dailyTotals];
 
     if (accumulate) {
       let runningTotal = 0;
-      finalChartData = dailyTotals.map(item => {
+      finalChartData = processedTotals.map(item => {
         runningTotal += item.amount;
         return { ...item, amount: runningTotal };
       });
     }
 
     const totalSpendingForPeriod = rawDailyAmounts.reduce((sum, amount) => sum + amount, 0);
-    const avgForPeriod = daysInPeriod.length > 0 ? totalSpendingForPeriod / daysInPeriod.length : 0;
-
+    const avgForPeriod = dailyTotals.length > 0 ? totalSpendingForPeriod / dailyTotals.length : 0;
+    
     return { chartData: finalChartData, totalAverageForPeriod: avgForPeriod };
 
-  }, [period, selectedDate, expenses, subscriptions, defaultCurrency, accumulate, isDataContextLoading, getAmountInDefaultCurrency]);
+  }, [dailyTotals, defaultCurrency, accumulate, isLoading]);
 
-  if (isDataContextLoading || !defaultCurrency) {
+  if (isLoading || !defaultCurrency) {
     return <Skeleton className="h-[300px] w-full" />;
   }
 
@@ -135,23 +79,26 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
     return null;
   };
 
+  // Determine X-axis interval dynamically
+  const getXAxisInterval = () => {
+    if (chartData.length <= 7) return 0; // Show all labels for a week or less
+    if (chartData.length <= 31) return Math.floor(chartData.length / 7); // Roughly weekly ticks for a month
+    return Math.floor(chartData.length / 12); // Roughly monthly ticks for a year
+  };
+
 
   return (
     <div style={{ width: '100%', height: 300 }}>
       <ResponsiveContainer>
-        <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}> {/* Adjusted left margin */}
+        <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis
-            dataKey="date"
+            dataKey="date" // This is now displayDate from dailyTotals
             stroke="hsl(var(--muted-foreground))"
             fontSize={12}
             tickLine={false}
             axisLine={false}
-            interval={
-              period === 'yearly' && chartData.length > 12
-                ? Math.floor(chartData.length / 12)
-                : (period === 'monthly' || period === 'weekly' ? 0 : 'preserveStartEnd')
-            }
+            interval={getXAxisInterval()}
           />
           <YAxis
             stroke="hsl(var(--muted-foreground))"
@@ -159,7 +106,7 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
             tickLine={false}
             axisLine={false}
             tickFormatter={(value) => `${formatCurrency(value, defaultCurrency, 'en-US').replace(defaultCurrency, '')}`}
-            width={85} // Increased width for Y-axis labels
+            width={85} 
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}/>
@@ -195,8 +142,3 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
     </div>
   );
 }
-
-// RechartsPrimitive.Label needs to be imported if not already globally available in Recharts
-// For explicit import, if `Label` is directly from `recharts`
-import * as RechartsPrimitive from 'recharts';
-

@@ -42,12 +42,31 @@ export type ReportPeriod = 'weekly' | 'monthly' | 'yearly';
 
 export interface ChartDataPoint {
   name: string;
-  value: number; 
+  value: number;
 }
 
+// Used by DailyExpensesLineChart and for intermediate calcs in report-actions
 export interface DailyTotalDataPoint {
-  rawDate: string; // e.g., '2023-10-27'
-  displayDate: string; // e.g., 'Oct 27' or '27' depending on period
-  amount: number;
+  rawDate: string; // e.g., '2023-10-27' (actual date string)
+  displayDate: string; // e.g., 'Oct 27' or '27' (formatted for display)
+  amount: number; // Total spending for this day
 }
 
+// Specific structure for category breakdown in reports
+export interface CategoryBreakdownPoint {
+  categoryId: string;
+  categoryName: string;
+  totalAmount: number;
+}
+
+// Overall metrics returned by the main report action
+export interface OverallPeriodMetrics {
+  totalOverallSpending: number;
+  dailyTotalsArray: DailyTotalDataPoint[];
+  categoryBreakdownArray: CategoryBreakdownPoint[];
+  // New fields for WeekdaySpendingBarChart
+  weekdayExpenseTotals: number[]; // Index 0=Mon, ..., 6=Sun
+  weekdaySubscriptionTotals: number[]; // Index 0=Mon, ..., 6=Sun
+  weekdayOccurrences: number[]; // Index 0=Mon, ..., 6=Sun
+  dailySpendingByWeekdayForErrorBar: Record<number, number[]>; // Key 0-6 (Mon-Sun), value is array of daily total amounts
+}

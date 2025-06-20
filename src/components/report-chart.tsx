@@ -1,21 +1,11 @@
 
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, Sector } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useData } from "@/contexts/data-context";
-import type { ReportPeriod, ChartDataPoint, Category, CurrencyCode } from "@/lib/types";
-import { 
-  format, 
-  startOfWeek, endOfWeek, 
-  startOfMonth, endOfMonth, 
-  startOfYear, endOfYear, 
-  eachDayOfInterval, eachMonthOfInterval, 
-  isWithinInterval, parseISO, 
-  getDaysInMonth,
-  isBefore, isEqual, isAfter
-} from "date-fns";
+import type { CategoryBreakdownPoint } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
 import { PieChart as PieChartIcon } from "lucide-react";
@@ -37,140 +27,21 @@ const COLORS = [
 
 
 interface ReportChartProps {
-  period: ReportPeriod;
-  date: Date; 
+  categoryBreakdown: CategoryBreakdownPoint[];
+  periodTitle: string;
+  isLoading: boolean;
 }
 
-export function ReportChart({ period, date }: ReportChartProps) {
-  const { expenses, subscriptions, getCategoryById, isLoading, settings, getAmountInDefaultCurrency, categories } = useData();
+export function ReportChart({ categoryBreakdown, periodTitle, isLoading }: ReportChartProps) {
+  const { settings } = useData();
   const defaultCurrency = settings.defaultCurrency;
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
 
-  const calculateReportData = (): ChartDataPoint[] => {
-    if (isLoading || !defaultCurrency || !categories) return [];
-
-    let reportPeriodStart: Date, reportPeriodEnd: Date;
-
-    switch (period) {
-      case 'weekly':
-        reportPeriodStart = startOfWeek(date, { weekStartsOn: 1 });
-        reportPeriodEnd = endOfWeek(date, { weekStartsOn: 1 });
-        break;
-      case 'monthly':
-        reportPeriodStart = startOfMonth(date);
-        reportPeriodEnd = endOfMonth(date);
-        break;
-      case 'yearly':
-      default:
-        reportPeriodStart = startOfYear(date);
-        reportPeriodEnd = endOfYear(date);
-        break;
-    }
-
-    const aggregatedData: { [categoryId: string]: number } = {};
-
-    expenses.forEach(expense => {
-      if (isWithinInterval(parseISO(expense.date), { start: reportPeriodStart, end: reportPeriodEnd })) {
-        const amountInDefault = getAmountInDefaultCurrency(expense);
-        aggregatedData[expense.categoryId] = (aggregatedData[expense.categoryId] || 0) + amountInDefault;
-      }
-    });
-    
-    const subscriptionsCategoryInfo = categories.find(c => c.id === 'subscriptions' || c.name.toLowerCase() === 'subscriptions');
-    const subscriptionsCategoryId = subscriptionsCategoryInfo ? subscriptionsCategoryInfo.id : 'uncategorized_subscriptions'; 
-    const subscriptionsCategoryName = subscriptionsCategoryInfo ? subscriptionsCategoryInfo.name : 'Subscriptions (Uncategorized)'; 
-    
-    subscriptions.forEach(sub => {
-      const subStartDate = parseISO(sub.startDate);
-      const subEndDate = sub.endDate ? parseISO(sub.endDate) : null;
-      let subContribution = 0;
-      const monthlyAmountInDefault = getAmountInDefaultCurrency(sub);
-
-      if (isAfter(subStartDate, reportPeriodEnd) && !isEqual(subStartDate, reportPeriodEnd)) return; 
-
-      if (period === 'monthly') {
-        const isActiveInMonth = 
-          (isEqual(subStartDate, reportPeriodEnd) || isBefore(subStartDate, reportPeriodEnd)) &&
-          (!subEndDate || isEqual(subEndDate, reportPeriodStart) || isAfter(subEndDate, reportPeriodStart));
-        if (isActiveInMonth) {
-          subContribution = monthlyAmountInDefault;
-        }
-      } else if (period === 'yearly') {
-        const yearMonths = eachMonthOfInterval({ start: reportPeriodStart, end: reportPeriodEnd });
-        yearMonths.forEach(monthInYear => {
-          const monthStart = startOfMonth(monthInYear);
-          const monthEnd = endOfMonth(monthInYear);
-          const isActiveInMonth = 
-            (isEqual(subStartDate, monthEnd) || isBefore(subStartDate, monthEnd)) &&
-            (!subEndDate || isEqual(subEndDate, monthStart) || isAfter(subEndDate, monthStart));
-          if (isActiveInMonth) {
-             subContribution += monthlyAmountInDefault;
-          }
-        });
-      } else { 
-        const billingMonthForWeekStart = startOfMonth(reportPeriodStart); 
-        const billingMonthForWeekEnd = endOfMonth(reportPeriodStart); 
-
-        const isActiveInBillingMonth =
-          (isEqual(subStartDate, billingMonthForWeekEnd) || isBefore(subStartDate, billingMonthForWeekEnd)) &&
-          (!subEndDate || isEqual(subEndDate, billingMonthForWeekStart) || isAfter(subEndDate, billingMonthForWeekStart));
-
-        if (isActiveInBillingMonth) {
-            const daysInBillingMonth = getDaysInMonth(billingMonthForWeekStart);
-            if (daysInBillingMonth > 0) {
-                const dailyRate = monthlyAmountInDefault / daysInBillingMonth;
-                const weekDaysInterval = eachDayOfInterval({start: reportPeriodStart, end: reportPeriodEnd});
-                let activeDaysInWeek = 0;
-                weekDaysInterval.forEach(dayInWeek => {
-                    const dayIsOnOrAfterSubStart = isEqual(dayInWeek, subStartDate) || isAfter(dayInWeek, subStartDate);
-                    const dayIsOnOrBeforeSubEnd = !subEndDate || isEqual(dayInWeek, subEndDate) || isBefore(dayInWeek, subEndDate);
-
-                    if (dayIsOnOrAfterSubStart && dayIsOnOrBeforeSubEnd) {
-                        activeDaysInWeek++;
-                    }
-                });
-                subContribution = dailyRate * activeDaysInWeek;
-            }
-        }
-      }
-      
-      if (subContribution > 0) {
-         const categoryIdToUse = sub.categoryId && getCategoryById(sub.categoryId) ? sub.categoryId : subscriptionsCategoryId;
-         aggregatedData[categoryIdToUse] = (aggregatedData[categoryIdToUse] || 0) + subContribution;
-      }
-    });
-    
-    return Object.entries(aggregatedData).map(([categoryId, total]) => {
-      let name = getCategoryById(categoryId)?.name;
-      if (!name && categoryId === 'uncategorized_subscriptions') {
-        name = subscriptionsCategoryName;
-      } else if (!name) {
-        name = "Uncategorized";
-      }
-      return {
-        name: name,
-        value: total, 
-      };
-    }).filter(d => d.value > 0).sort((a,b) => b.value - a.value);
-  };
-
-  const data = calculateReportData();
-
-  const getTitle = () => {
-    let periodName = "";
-     switch (period) {
-      case 'weekly':
-        periodName = `${format(startOfWeek(date, { weekStartsOn: 1 }), "MMM d")} - ${format(endOfWeek(date, { weekStartsOn: 1 }), "MMM d, yyyy")}`;
-        break;
-      case 'monthly':
-        periodName = format(date, "MMMM yyyy");
-        break;
-      case 'yearly':
-        periodName = format(date, "yyyy");
-        break;
-    }
-    return `Category Breakdown: ${periodName}`;
-  }
+  // Map categoryBreakdown to chart data format
+  const data = categoryBreakdown.map(item => ({
+    name: item.categoryName,
+    value: item.totalAmount,
+  }));
   
   if (isLoading || !defaultCurrency) {
     return (
@@ -194,7 +65,7 @@ export function ReportChart({ period, date }: ReportChartProps) {
         <CardHeader>
           <CardTitle className="text-lg font-semibold flex items-center">
             <PieChartIcon className="mr-2 h-5 w-5 text-primary" />
-            {getTitle()}
+            Category Breakdown: {periodTitle.replace('Total Spending: ', '')}
           </CardTitle>
         </CardHeader>
         <CardContent className="h-[350px] flex items-center justify-center">
@@ -234,11 +105,11 @@ export function ReportChart({ period, date }: ReportChartProps) {
         cx={cx}
         cy={cy}
         innerRadius={innerRadius}
-        outerRadius={outerRadius + 6} // Make slice slightly larger on hover
+        outerRadius={outerRadius + 6} 
         startAngle={startAngle}
         endAngle={endAngle}
         fill={fill}
-        stroke={fill} // Optional: add a stroke of the same color for emphasis
+        stroke={fill} 
         strokeWidth={1}
       />
     );
@@ -250,7 +121,7 @@ export function ReportChart({ period, date }: ReportChartProps) {
       <CardHeader>
         <CardTitle className="text-lg font-semibold flex items-center">
           <PieChartIcon className="mr-2 h-5 w-5 text-primary" />
-          {getTitle()}
+          Category Breakdown: {periodTitle.replace('Total Spending: ', '')}
         </CardTitle>
       </CardHeader>
       <CardContent>
