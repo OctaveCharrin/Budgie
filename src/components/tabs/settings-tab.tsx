@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Trash2, RotateCcw, Settings2 } from "lucide-react";
+import { PlusCircle, Trash2, RotateCcw, Settings2, AlertTriangle } from "lucide-react"; // Added AlertTriangle
 import { useData } from "@/contexts/data-context";
 import { CategoryForm } from "@/components/forms/category-form";
 import { CategoryListItem } from "@/components/list-items/category-list-item";
@@ -162,7 +162,10 @@ export function SettingsTab() {
         <Separator />
         {/* Data Management Skeleton */}
         <section>
-          <Skeleton className="h-9 w-1/2 mb-4" /> {/* "Data Management" title */}
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-9 w-1/2" /> {/* "Data Management" title */}
+            <Skeleton className="h-6 w-28" /> {/* "Danger Zone" */}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card className="shadow-md">
               <CardHeader>
@@ -270,9 +273,15 @@ export function SettingsTab() {
       <Separator />
 
       <section>
-        <h2 className="text-2xl font-semibold font-headline mb-4">Data Management</h2>
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-2xl font-semibold font-headline">Data Management</h2>
+          <span className="text-destructive font-semibold flex items-center">
+            <AlertTriangle className="mr-1 h-5 w-5" />
+            DANGER ZONE
+          </span>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card className="shadow-md">
+          <Card className="shadow-md border-destructive">
             <CardHeader>
               <CardTitle>Delete All Expenses</CardTitle>
               <CardDescription>
@@ -324,7 +333,7 @@ export function SettingsTab() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-md">
+          <Card className="shadow-md border-destructive">
             <CardHeader>
               <CardTitle>Delete All Subscriptions</CardTitle>
               <CardDescription>
@@ -376,7 +385,7 @@ export function SettingsTab() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-md">
+          <Card className="shadow-md border-destructive">
             <CardHeader>
               <CardTitle>Reset Categories</CardTitle>
               <CardDescription>
