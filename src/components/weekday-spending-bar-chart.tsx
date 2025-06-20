@@ -18,7 +18,9 @@ interface WeekdaySpendingBarChartProps {
 interface ChartData {
   name: string; // Weekday name (Mon, Tue, etc.)
   averageSpending: number;
-  minMaxRange: [number, number]; // [min, max] for ErrorBar
+  errorValues: [number, number]; // [average - absoluteMin, absoluteMax - average]
+  absoluteMinForTooltip: number;
+  absoluteMaxForTooltip: number;
 }
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -53,18 +55,22 @@ export function WeekdaySpendingBarChart({
         currentMax = Math.max(...dailyTotalsForThisWeekday);
       }
       
-      // Ensure minMaxRange has distinct values for ErrorBar keying, even if min=max=0
-      let finalMax = currentMax;
-      if (currentMin === finalMax) {
-          finalMax += 0.0000000001; // Tiny base epsilon
-      }
-      finalMax += index * 0.00001; // Index-based epsilon for further differentiation
-
+      // Calculate deviations for the ErrorBar
+      // lowerError should be averageSpending - currentMin
+      // upperError should be currentMax - averageSpending
+      // These ensure the error bar spans from currentMin to currentMax
+      const lowerDeviation = averageSpending - currentMin;
+      const upperDeviation = currentMax - averageSpending;
 
       return {
         name: label,
         averageSpending: averageSpending,
-        minMaxRange: [currentMin, finalMax] as [number, number],
+        errorValues: [
+          Math.max(0, lowerDeviation), // Ensure deviation isn't negative if avg is outside min/max (unlikely here)
+          Math.max(0, upperDeviation)
+        ] as [number, number],
+        absoluteMinForTooltip: currentMin,
+        absoluteMaxForTooltip: currentMax,
       };
     });
 
@@ -80,8 +86,13 @@ export function WeekdaySpendingBarChart({
   if (isLoading || !defaultCurrency) {
     return <Skeleton className="h-[300px] w-full" />;
   }
+  
+  const noSpendingData = chartData.every(d => 
+    d.averageSpending === 0 && 
+    d.absoluteMinForTooltip === 0 && 
+    d.absoluteMaxForTooltip === 0
+  );
 
-  const noSpendingData = chartData.every(d => d.averageSpending === 0 && d.minMaxRange[0] === 0 && (d.minMaxRange[1] < 0.0001));
   if (noSpendingData) {
     return (
       <div className="h-[300px] flex items-center justify-center">
@@ -92,11 +103,11 @@ export function WeekdaySpendingBarChart({
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
-      const dataPoint = payload[0].payload;
+      const dataPoint = payload[0].payload as ChartData; // Cast to ChartData
       const avgSpending = dataPoint.averageSpending;
       
-      const displayMax = dataPoint.minMaxRange[1] - (WEEKDAY_LABELS.indexOf(label) * 0.00001);
-      const displayMin = dataPoint.minMaxRange[0];
+      const displayMin = dataPoint.absoluteMinForTooltip;
+      const displayMax = dataPoint.absoluteMaxForTooltip;
 
       return (
         <div className="p-2 bg-background border border-border rounded-md shadow-lg">
@@ -143,9 +154,9 @@ export function WeekdaySpendingBarChart({
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} formatter={(value) => "Average Daily Spending"}/>
           <Bar dataKey="averageSpending" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} animationDuration={500}>
-            {/* Only render ErrorBar if there's actual data to create a range */}
-            {chartData.some(d => (d.minMaxRange[1] - (WEEKDAY_LABELS.indexOf(d.name) * 0.00001)) > d.minMaxRange[0]) && (
-              <ErrorBar dataKey="minMaxRange" width={5} strokeWidth={1.5} stroke="hsl(var(--muted-foreground))" direction="y" />
+            {/* Render ErrorBar if there's a difference between min and max daily spending */}
+            {chartData.some(d => d.absoluteMaxForTooltip > d.absoluteMinForTooltip) && (
+              <ErrorBar dataKey="errorValues" width={5} strokeWidth={1.5} stroke="hsl(var(--muted-foreground))" direction="y" />
             )}
           </Bar>
         </BarChart>
