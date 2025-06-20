@@ -147,7 +147,11 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
             fontSize={12}
             tickLine={false}
             axisLine={false}
-            interval={period === 'yearly' && chartData.length > 12 ? Math.floor(chartData.length / 12) : 'preserveStartEnd'}
+            interval={
+              period === 'yearly' && chartData.length > 12
+                ? Math.floor(chartData.length / 12)
+                : (period === 'monthly' || period === 'weekly' ? 0 : 'preserveStartEnd')
+            }
           />
           <YAxis
             stroke="hsl(var(--muted-foreground))"
@@ -181,8 +185,8 @@ export function DailyExpensesLineChart({ period, selectedDate, accumulate }: Dai
                     position="left"
                     fill="hsl(var(--destructive))"
                     fontSize={10}
-                    dy={0} 
-                    dx={-6} 
+                    dy={0}
+                    dx={-6}
                 />
              </ReferenceLine>
           )}
