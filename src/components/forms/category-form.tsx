@@ -40,16 +40,20 @@ interface CategoryFormProps {
   onSave: () => void;
 }
 
+// Refined filter for lucideIconNames
 const lucideIconNames = Object.keys(LucideIcons)
-  .filter(
-    (key) =>
-      typeof (LucideIcons as any)[key] === 'function' &&
-      key[0] === key[0]?.toUpperCase() && 
-      key !== 'createLucideIcon' &&
-      key !== 'LucideIcon' &&
-      key !== 'IconNode' &&
-      key !== 'default' // Exclude default export if any
-  )
+  .filter(key => {
+    const component = (LucideIcons as any)[key];
+    // Check if it's a function (React components are)
+    // and if its displayName (set by Lucide's createLucideIcon) matches the export key.
+    // Also, explicitly exclude known non-icon exports.
+    return typeof component === 'function' &&
+           component.displayName === key &&
+           key !== 'createLucideIcon' &&
+           key !== 'LucideIcon' &&
+           key !== 'IconNode' &&
+           key !== 'default';
+  })
   .sort();
 
 export function CategoryForm({ category, onSave }: CategoryFormProps) {
@@ -65,7 +69,7 @@ export function CategoryForm({ category, onSave }: CategoryFormProps) {
 
   function onSubmit(values: CategoryFormValues) {
     if (category) {
-      updateCategory({ ...category, ...values }); // values now include name and icon
+      updateCategory({ ...category, ...values });
       toast({ title: "Category Updated", description: "Category has been successfully updated." });
     } else {
       addCategory({ name: values.name, icon: values.icon || "DollarSign" });
