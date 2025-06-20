@@ -5,7 +5,7 @@ import React, { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine } from 'recharts';
 import { useData } from '@/contexts/data-context';
 import { formatCurrency } from '@/lib/utils';
-import type { DailyTotalDataPoint } from '@/lib/types';
+import type { DailyTotalDataPoint, ReportPeriod } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import * as RechartsPrimitive from 'recharts';
 
@@ -14,6 +14,7 @@ interface DailyExpensesLineChartProps {
   dailyTotals: DailyTotalDataPoint[];
   accumulate: boolean;
   isLoading: boolean;
+  period: ReportPeriod; // Added period prop
 }
 
 interface ChartData {
@@ -22,7 +23,7 @@ interface ChartData {
 }
 
 
-export function DailyExpensesLineChart({ dailyTotals, accumulate, isLoading }: DailyExpensesLineChartProps) {
+export function DailyExpensesLineChart({ dailyTotals, accumulate, isLoading, period }: DailyExpensesLineChartProps) {
   const { settings } = useData(); // Only need settings for defaultCurrency
   const defaultCurrency = settings.defaultCurrency;
 
@@ -86,6 +87,8 @@ export function DailyExpensesLineChart({ dailyTotals, accumulate, isLoading }: D
     return Math.floor(chartData.length / 12); // Roughly monthly ticks for a year
   };
 
+  const lineDotConfig = period === 'yearly' ? false : { r: 3, fill: 'hsl(var(--primary))' };
+
 
   return (
     <div style={{ width: '100%', height: 300 }}>
@@ -115,7 +118,7 @@ export function DailyExpensesLineChart({ dailyTotals, accumulate, isLoading }: D
             dataKey="amount"
             stroke="hsl(var(--primary))"
             strokeWidth={2}
-            dot={{ r: 3, fill: 'hsl(var(--primary))' }}
+            dot={lineDotConfig}
             activeDot={{ r: 5 }}
             name={accumulate ? "Accumulated Spending" : "Daily Spending"}
             animationDuration={500}
@@ -142,3 +145,4 @@ export function DailyExpensesLineChart({ dailyTotals, accumulate, isLoading }: D
     </div>
   );
 }
+

@@ -230,6 +230,7 @@ export function ReportsTab() {
             dailyTotals={reportData.dailyTotalsArray}
             accumulate={accumulateDailyExpenses}
             isLoading={isReportLoading}
+            period={period} 
           />
         </CardContent>
       </Card>
@@ -265,3 +266,4 @@ export function ReportsTab() {
     </div>
   );
 }
+
