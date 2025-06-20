@@ -52,7 +52,7 @@ export default function HomePage() {
         </Tabs>
       </main>
        <footer className="py-4 text-center text-sm text-muted-foreground border-t">
-        TrackRight &copy; {new Date().getFullYear()}
+        Budgie &copy; {new Date().getFullYear()}
       </footer>
     </div>
   );

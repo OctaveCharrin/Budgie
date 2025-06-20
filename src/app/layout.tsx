@@ -4,8 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { DataProvider } from '@/contexts/data-context';
 
 export const metadata: Metadata = {
-  title: 'TrackRight - Daily Expense Tracker',
-  description: 'Track your daily expenses and visualize your spending habits with TrackRight. Data stored locally on the server.',
+  title: 'Budgie - Daily Expense Tracker',
+  description: 'Track your daily expenses and visualize your spending habits with Budgie. Data stored locally on the server.',
 };
 
 export default function RootLayout({
