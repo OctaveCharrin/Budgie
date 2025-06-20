@@ -45,11 +45,22 @@ export async function initializeDb() {
       categoryId TEXT, 
       originalAmount REAL NOT NULL,
       originalCurrency TEXT NOT NULL,
-      day_of_week INTEGER NOT NULL, -- 0 for Monday, 1 for Tuesday, ..., 6 for Sunday
+      day_of_week INTEGER NOT NULL, 
       ${amountColumns},
       description TEXT
     );
   `);
+
+  // Check and add day_of_week column to expenses if it doesn't exist (for existing databases)
+  const expensesTableInfo = await dbInstance.all<{name: string, type: string}>('PRAGMA table_info(expenses);');
+  const dayOfWeekColumnExists = expensesTableInfo.some(col => col.name === 'day_of_week');
+
+  if (!dayOfWeekColumnExists) {
+    console.log("Adding missing 'day_of_week' column to 'expenses' table with NOT NULL DEFAULT 0.");
+    // Add the column with NOT NULL and a DEFAULT value to satisfy the constraint for existing rows.
+    // New/updated rows will get the correct calculated value from data-actions.ts.
+    await dbInstance.exec('ALTER TABLE expenses ADD COLUMN day_of_week INTEGER NOT NULL DEFAULT 0;');
+  }
 
   await dbInstance.exec(`
     CREATE TABLE IF NOT EXISTS subscriptions (
