@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Trash2, RotateCcw, Settings2, AlertTriangle, KeyRound, Eye, EyeOff } from "lucide-react";
+import { PlusCircle, Trash2, RotateCcw, Settings2, AlertTriangle, KeyRound, Eye, EyeOff, Dot } from "lucide-react";
 import { useData } from "@/contexts/data-context";
 import { CategoryForm } from "@/components/forms/category-form";
 import { CategoryListItem } from "@/components/list-items/category-list-item";
@@ -52,14 +52,11 @@ export function SettingsTab() {
   const [isResetCategoriesAlertOpen, setIsResetCategoriesAlertOpen] = useState(false);
   const [resetCategoriesConfirmationInput, setResetCategoriesConfirmationInput] = useState("");
 
-  const [apiKeyInput, setApiKeyInput] = useState(""); // Initialize as empty
+  const [apiKeyInput, setApiKeyInput] = useState(""); 
   const [showApiKey, setShowApiKey] = useState(false);
   
   const { toast } = useToast();
 
-  // No useEffect to set apiKeyInput from settings.apiKey directly
-  // This ensures the input field starts empty for security reasons.
-  // The display of the current key is handled by getMaskedApiKeyDisplay.
 
   const handleEditCategory = (category: Category) => {
     setEditingCategory(category);
@@ -124,12 +121,25 @@ export function SettingsTab() {
 
   const handleApiKeySave = async () => {
     try {
-      await updateSettings({ ...settings, apiKey: apiKeyInput.trim() });
-      toast({ title: "API Key Saved", description: "ExchangeRate-API key has been updated." });
-      setApiKeyInput(""); // Clear the input field after saving
-      setShowApiKey(false); // Optionally hide the key again
+      // If key is empty, status is 'missing', otherwise 'unchecked' until validated
+      const newStatus = apiKeyInput.trim() === '' ? 'missing' : 'unchecked';
+      await updateSettings({ ...settings, apiKey: apiKeyInput.trim(), apiKeyStatus: newStatus });
+      toast({ title: "API Key Saved", description: "ExchangeRate-API key has been updated. Status will be validated on next use." });
+      setApiKeyInput(""); 
+      setShowApiKey(false); 
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Could not save API key." });
+    }
+  };
+  
+  const handleApiKeyRemove = async () => {
+    try {
+      await updateSettings({ ...settings, apiKey: '', apiKeyStatus: 'missing' });
+      toast({ title: "API Key Removed", description: "ExchangeRate-API key has been removed." });
+      setApiKeyInput(""); 
+      setShowApiKey(false);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Could not remove API key." });
     }
   };
 
@@ -141,6 +151,47 @@ export function SettingsTab() {
       return "••••••••";
     }
     return `••••••••${settings.apiKey.slice(-4)}`;
+  };
+
+  const renderApiKeyStatusMessage = () => {
+    if (isDataLoading || !settings) return null;
+
+    switch (settings.apiKeyStatus) {
+      case 'invalid':
+        return (
+          <p className="text-sm text-destructive mt-2 flex items-center">
+            <AlertTriangle className="h-4 w-4 mr-1" />
+            The saved API key appears to be invalid or inactive. Conversions may fail or use fallback rates. Please update or remove it.
+          </p>
+        );
+      case 'missing':
+        return (
+          <p className="text-sm text-muted-foreground mt-2">
+            API Key not set. Live currency conversions are disabled. Fallback rates will be used.
+          </p>
+        );
+      case 'unchecked':
+        if (settings.apiKey && settings.apiKey.length > 0) {
+          return (
+            <p className="text-sm text-muted-foreground mt-2">
+              API Key status is unknown. It will be validated on the next currency conversion.
+            </p>
+          );
+        }
+        return ( // Fallback for missing key if somehow status is unchecked
+          <p className="text-sm text-muted-foreground mt-2">
+            API Key not set. Live currency conversions are disabled. Fallback rates will be used.
+          </p>
+        );
+      case 'valid':
+        return (
+          <p className="text-sm text-green-600 dark:text-green-500 mt-2">
+            API Key is valid and active.
+          </p>
+        );
+      default:
+        return null;
+    }
   };
   
   if (isDataLoading) {
@@ -178,8 +229,12 @@ export function SettingsTab() {
             </CardHeader>
             <CardContent className="space-y-3">
                 <Skeleton className="h-10 w-full rounded-md" /> 
-                <Skeleton className="h-10 w-32 rounded-md" /> 
+                 <Skeleton className="h-4 w-full" /> 
             </CardContent>
+             <CardFooter className="gap-2">
+                <Skeleton className="h-10 w-32 rounded-md" /> 
+                <Skeleton className="h-10 w-32 rounded-md" /> 
+            </CardFooter>
            </Card>
         </section>
         <Separator/>
@@ -289,14 +344,15 @@ export function SettingsTab() {
       <section>
         <h2 className="text-2xl font-semibold font-headline mb-4 flex items-center">
             <KeyRound className="mr-3 h-7 w-7 text-primary" /> Exchange Rate API Key
+            {settings.apiKeyStatus === 'invalid' && <Dot className="h-8 w-8 text-destructive animate-ping" />}
         </h2>
         <Card className="shadow-md">
             <CardHeader>
                 <CardTitle>ExchangeRate-API Key</CardTitle>
                 <CardDescription>
                     Provide your API key from <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer" className="underline text-primary hover:text-primary/80">ExchangeRate-API.com</a> for live currency conversions.
-                    The key is stored securely on the server and is not exposed to the browser.
-                    If no key is provided here or via environment variable, placeholder rates will be used.
+                    The key is stored securely on the server.
+                    If no key is provided, placeholder rates will be used.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -315,13 +371,20 @@ export function SettingsTab() {
                             {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </Button>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-2">
+                     <p className="text-sm text-muted-foreground mt-2">
                         Current Saved Key: {getMaskedApiKeyDisplay()}
                     </p>
+                    {renderApiKeyStatusMessage()}
                 </div>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="gap-2">
                  <Button onClick={handleApiKeySave} className="bg-accent hover:bg-accent/90 text-accent-foreground">Save API Key</Button>
+                 <Button
+                    variant="outline"
+                    onClick={handleApiKeyRemove}
+                  >
+                    Remove Key
+                  </Button>
             </CardFooter>
         </Card>
       </section>
