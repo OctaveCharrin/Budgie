@@ -40,19 +40,26 @@ interface CategoryFormProps {
   onSave: () => void;
 }
 
-// Refined filter for lucideIconNames
 const lucideIconNames = Object.keys(LucideIcons)
   .filter(key => {
     const component = (LucideIcons as any)[key];
-    // Check if it's a function (React components are)
-    // and if its displayName (set by Lucide's createLucideIcon) matches the export key.
-    // Also, explicitly exclude known non-icon exports.
-    return typeof component === 'function' &&
-           component.displayName === key &&
-           key !== 'createLucideIcon' &&
-           key !== 'LucideIcon' &&
-           key !== 'IconNode' &&
-           key !== 'default';
+    // Check if the component exists, is a function, and is a React forwardRef component
+    if (!component || typeof component !== 'function' || component.$$typeof !== Symbol.for('react.forward_ref')) {
+      return false;
+    }
+    // Check if displayName matches the key (common pattern for lucide-react icons)
+    if (component.displayName !== key) {
+      return false;
+    }
+    // Exclude known non-icon exports
+    const isKnownNonIcon =
+      key === 'createLucideIcon' ||
+      key === 'LucideIcon' ||
+      key === 'IconNode' ||
+      key === 'default' ||
+      key === 'icons'; // 'icons' is an object map, not a component
+
+    return !isKnownNonIcon;
   })
   .sort();
 

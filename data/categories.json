@@ -48,5 +48,10 @@
     "id": "tech",
     "name": "Tech",
     "icon": "Laptop"
+  },
+  {
+    "id": "3faf29ef-d2d3-4244-b21a-5324dba792e2",
+    "name": "dqksf",
+    "icon": "DollarSign"
   }
 ]
