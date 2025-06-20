@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ErrorBar } from 'recharts';
 import {
   format, parseISO, eachDayOfInterval, getDay,
   startOfWeek, endOfWeek,
@@ -24,6 +24,7 @@ interface WeekdaySpendingBarChartProps {
 interface ChartData {
   name: string; // Weekday name (Mon, Tue, etc.)
   averageSpending: number;
+  minMaxRange: [number, number]; // [min, max] for ErrorBar
 }
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -32,7 +33,7 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
   const { expenses, subscriptions, settings, isLoading: isDataContextLoading, getAmountInDefaultCurrency } = useData();
   const defaultCurrency = settings.defaultCurrency;
 
-  const chartData = useMemo(() => {
+  const chartData: ChartData[] = useMemo(() => {
     if (isDataContextLoading || !defaultCurrency) return [];
 
     let periodStart: Date, periodEnd: Date;
@@ -53,22 +54,31 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
         break;
     }
 
-    const weekdayTotals: number[] = Array(7).fill(0);
-    const weekdayCounts: number[] = Array(7).fill(0);
+    const weekdayStats: Array<{
+      total: number;
+      count: number;
+      max: number;
+      min: number;
+      hasSpending: boolean; // To track if any positive spending occurred
+    }> = Array(7).fill(null).map(() => ({
+      total: 0,
+      count: 0,
+      max: 0,
+      min: Number.POSITIVE_INFINITY,
+      hasSpending: false,
+    }));
 
     const daysInSelectedPeriod = eachDayOfInterval({ start: periodStart, end: periodEnd });
 
     daysInSelectedPeriod.forEach(currentDay => {
       let dailySpending = 0;
 
-      // Calculate expenses for the currentDay
       expenses.forEach(expense => {
         if (isSameDay(parseISO(expense.date), currentDay)) {
           dailySpending += getAmountInDefaultCurrency(expense);
         }
       });
 
-      // Calculate prorated subscriptions for the currentDay
       subscriptions.forEach(sub => {
         const subStartDate = parseISO(sub.startDate);
         const subEndDate = sub.endDate ? parseISO(sub.endDate) : null;
@@ -78,24 +88,64 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
 
         if (isSubscriptionActiveToday) {
           const monthlyAmount = getAmountInDefaultCurrency(sub);
-          const daysInBillingMonth = getDaysInMonth(currentDay); 
+          const daysInBillingMonth = getDaysInMonth(currentDay);
           if (daysInBillingMonth > 0) {
             dailySpending += monthlyAmount / daysInBillingMonth;
           }
         }
       });
 
-      const dayOfWeek = getDay(currentDay); // 0 for Sunday, 1 for Monday, ..., 6 for Saturday
-      const adjustedIndex = (dayOfWeek === 0) ? 6 : dayOfWeek - 1; // Map to Mon (0) - Sun (6)
+      const dayOfWeek = getDay(currentDay);
+      const adjustedIndex = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
 
-      weekdayTotals[adjustedIndex] += dailySpending;
-      weekdayCounts[adjustedIndex]++;
+      weekdayStats[adjustedIndex].total += dailySpending;
+      weekdayStats[adjustedIndex].count++;
+
+      if (dailySpending > 0) {
+        weekdayStats[adjustedIndex].hasSpending = true;
+        weekdayStats[adjustedIndex].max = Math.max(weekdayStats[adjustedIndex].max, dailySpending);
+        weekdayStats[adjustedIndex].min = Math.min(weekdayStats[adjustedIndex].min, dailySpending);
+      } else {
+        // If dailySpending is 0, still consider it for min if other days had spending,
+        // or if this is the first day and hasSpending is not yet true.
+         if (weekdayStats[adjustedIndex].hasSpending) {
+             weekdayStats[adjustedIndex].min = Math.min(weekdayStats[adjustedIndex].min, 0);
+         }
+         // If max is still 0 (initial value), it remains 0 for a 0 spending day.
+      }
     });
+    
+    return WEEKDAY_LABELS.map((label, index) => {
+      const stats = weekdayStats[index];
+      const averageSpending = stats.count > 0 ? stats.total / stats.count : 0;
 
-    return WEEKDAY_LABELS.map((label, index) => ({
-      name: label,
-      averageSpending: weekdayCounts[index] > 0 ? weekdayTotals[index] / weekdayCounts[index] : 0,
-    }));
+      let minForRange: number;
+      let maxForRange: number;
+
+      if (stats.count === 0) { // No occurrences of this weekday in the period
+        minForRange = 0;
+        maxForRange = 0;
+      } else if (!stats.hasSpending) { // Weekday occurred, but all instances had 0 spending
+        minForRange = 0;
+        maxForRange = 0;
+      } else { // Weekday occurred and had some positive spending
+        minForRange = stats.min;
+        maxForRange = stats.max;
+      }
+      
+      // Ensure the error bar range makes sense relative to the average
+      // For example, if average is 50, min is 60 (due to some calculation quirk), fix it.
+      // Min should be <= average, Max should be >= average.
+      // Also, min should be <= max.
+      const finalMin = Math.min(minForRange, averageSpending);
+      const finalMax = Math.max(maxForRange, averageSpending);
+
+      return {
+        name: label,
+        averageSpending: averageSpending,
+        minMaxRange: [finalMin, finalMax].sort((a,b) => a-b) as [number, number],
+      };
+    });
 
   }, [period, selectedDate, expenses, subscriptions, defaultCurrency, isDataContextLoading, getAmountInDefaultCurrency]);
 
@@ -103,7 +153,8 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
     return <Skeleton className="h-[300px] w-full" />;
   }
 
-  if (chartData.every(d => d.averageSpending === 0)) {
+  const noSpendingData = chartData.every(d => d.averageSpending === 0 && d.minMaxRange[0] === 0 && d.minMaxRange[1] === 0);
+  if (noSpendingData) {
     return (
       <div className="h-[300px] flex items-center justify-center">
         <p className="text-muted-foreground">No spending data available for this period to calculate weekday averages.</p>
@@ -113,12 +164,26 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+      const dataPoint = payload[0].payload;
+      const avgSpending = dataPoint.averageSpending;
+      const minMax = dataPoint.minMaxRange;
+
       return (
         <div className="p-2 bg-background border border-border rounded-md shadow-lg">
           <p className="font-semibold">{`Day: ${label}`}</p>
           <p className="text-sm" style={{ color: payload[0].fill }}>
-            {`Avg. Spending: ${formatCurrency(payload[0].value, defaultCurrency)}`}
+            {`Avg: ${formatCurrency(avgSpending, defaultCurrency)}`}
           </p>
+          {minMax && (
+            <>
+              <p className="text-xs text-muted-foreground">
+                {`Min: ${formatCurrency(minMax[0], defaultCurrency)}`}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {`Max: ${formatCurrency(minMax[1], defaultCurrency)}`}
+              </p>
+            </>
+          )}
         </div>
       );
     }
@@ -147,10 +212,11 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} formatter={(value) => "Average Spending"}/>
-          <Bar dataKey="averageSpending" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} animationDuration={500} />
+          <Bar dataKey="averageSpending" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} animationDuration={500}>
+            <ErrorBar dataKey="minMaxRange" width={5} strokeWidth={1.5} stroke="hsl(var(--muted-foreground))" direction="y" />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
   );
 }
-
