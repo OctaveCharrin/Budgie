@@ -18,7 +18,7 @@ interface WeekdaySpendingBarChartProps {
 interface ChartData {
   name: string; // Weekday name (Mon, Tue, etc.)
   averageSpending: number;
-  errorValues: [number, number]; // [average - absoluteMin, absoluteMax - average]
+  errorValues: [number, number]; // [deviation downwards from avg, deviation upwards from avg]
   absoluteMinForTooltip: number;
   absoluteMaxForTooltip: number;
 }
@@ -55,20 +55,26 @@ export function WeekdaySpendingBarChart({
         currentMax = Math.max(...dailyTotalsForThisWeekday);
       }
       
-      // Calculate deviations for the ErrorBar
-      // lowerError should be averageSpending - currentMin
-      // upperError should be currentMax - averageSpending
-      // These ensure the error bar spans from currentMin to currentMax
-      const lowerDeviation = averageSpending - currentMin;
-      const upperDeviation = currentMax - averageSpending;
+      let lowerDeviation = averageSpending - currentMin;
+      let upperDeviation = currentMax - averageSpending;
+
+      // Ensure deviations are not negative
+      lowerDeviation = Math.max(0, lowerDeviation);
+      upperDeviation = Math.max(0, upperDeviation);
+      
+      if (currentMin === currentMax) {
+        // If min and max are the same, the error bar has no range.
+        // To prevent potential key collisions in Recharts if multiple weekdays
+        // have [0,0] deviations, add a tiny unique epsilon.
+        // This typically happens if errorValues would be [0,0].
+        lowerDeviation = 0; // Explicitly ensure lower is 0 for no-range.
+        upperDeviation = index * 0.0000001; // Make it unique and tiny.
+      }
 
       return {
         name: label,
         averageSpending: averageSpending,
-        errorValues: [
-          Math.max(0, lowerDeviation), // Ensure deviation isn't negative if avg is outside min/max (unlikely here)
-          Math.max(0, upperDeviation)
-        ] as [number, number],
+        errorValues: [lowerDeviation, upperDeviation] as [number, number],
         absoluteMinForTooltip: currentMin,
         absoluteMaxForTooltip: currentMax,
       };
@@ -103,7 +109,7 @@ export function WeekdaySpendingBarChart({
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
-      const dataPoint = payload[0].payload as ChartData; // Cast to ChartData
+      const dataPoint = payload[0].payload as ChartData; 
       const avgSpending = dataPoint.averageSpending;
       
       const displayMin = dataPoint.absoluteMinForTooltip;
@@ -116,6 +122,7 @@ export function WeekdaySpendingBarChart({
             {`Avg: ${formatCurrency(avgSpending, defaultCurrency)}`}
           </p>
           { dailySpendingByWeekdayForErrorBar[WEEKDAY_LABELS.indexOf(label)]?.length > 0 &&
+             displayMin !== displayMax && // Only show min/max if there's an actual range
             <>
               <p className="text-xs text-muted-foreground">
                 {`Max Daily Total: ${formatCurrency(displayMax, defaultCurrency)}`}
@@ -154,7 +161,7 @@ export function WeekdaySpendingBarChart({
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} formatter={(value) => "Average Daily Spending"}/>
           <Bar dataKey="averageSpending" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} animationDuration={500}>
-            {/* Render ErrorBar if there's a difference between min and max daily spending */}
+            {/* Render ErrorBar if there's a difference between min and max daily spending for at least one weekday */}
             {chartData.some(d => d.absoluteMaxForTooltip > d.absoluteMinForTooltip) && (
               <ErrorBar dataKey="errorValues" width={5} strokeWidth={1.5} stroke="hsl(var(--muted-foreground))" direction="y" />
             )}
