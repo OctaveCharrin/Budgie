@@ -110,12 +110,12 @@ export function DashboardTab() {
             <p className="text-xs text-muted-foreground">{subscriptions.length} active subscriptions</p>
           </CardContent>
         </Card>
-         <Card className="lg:col-span-1 md:col-span-2 flex flex-col items-center justify-center p-6 bg-gradient-to-br from-primary/80 to-accent/80 text-primary-foreground shadow-lg">
+         <Card className="lg:col-span-1 md:col-span-2 flex flex-col items-center justify-center p-6 bg-accent text-accent-foreground shadow-lg">
            <Dialog open={isAddExpenseOpen} onOpenChange={(isOpen) => {
              if (!isOpen) closeDialogAndReset(); else setIsAddExpenseOpen(true);
            }}>
             <DialogTrigger asChild>
-              <Button size="lg" className="w-full h-full text-lg bg-background/20 hover:bg-background/30 text-primary-foreground border-2 border-primary-foreground/50">
+              <Button size="lg" className="w-full h-full text-lg bg-primary hover:bg-primary/90 text-primary-foreground border-2 border-primary-foreground/30 hover:border-primary-foreground/50">
                 <PlusCircle className="mr-2 h-6 w-6" /> Add New Expense
               </Button>
             </DialogTrigger>
@@ -154,4 +154,3 @@ function addYears(date: Date, years: number): Date {
   newDate.setFullYear(newDate.getFullYear() + years);
   return newDate;
 }
-
