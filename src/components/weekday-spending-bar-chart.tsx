@@ -59,7 +59,7 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
       count: number;
       max: number;
       min: number;
-      hasSpending: boolean; 
+      hasSpending: boolean;
     }> = Array(7).fill(null).map(() => ({
       total: 0,
       count: 0,
@@ -99,38 +99,57 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
       const adjustedIndex = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
 
       weekdayStats[adjustedIndex].total += dailySpending;
-      weekdayStats[adjustedIndex].count++;
+      weekdayStats[adjustedIndex].count++; // Count occurrences of this weekday in the period
 
       if (dailySpending > 0) {
         weekdayStats[adjustedIndex].hasSpending = true;
         weekdayStats[adjustedIndex].max = Math.max(weekdayStats[adjustedIndex].max, dailySpending);
         weekdayStats[adjustedIndex].min = Math.min(weekdayStats[adjustedIndex].min, dailySpending);
-      } else {
-         if (weekdayStats[adjustedIndex].hasSpending) {
-             weekdayStats[adjustedIndex].min = Math.min(weekdayStats[adjustedIndex].min, 0);
+      } else { // dailySpending is 0
+         if (weekdayStats[adjustedIndex].hasSpending) { // if this weekday ALREADY had some spending on another day
+             weekdayStats[adjustedIndex].min = Math.min(weekdayStats[adjustedIndex].min, 0); // then 0 is a valid min
          }
+         // If it never had spending, min remains POSITIVE_INFINITY, max remains 0 for now. hasSpending remains false.
       }
     });
-    
+
     return WEEKDAY_LABELS.map((label, index) => {
       const stats = weekdayStats[index];
       const averageSpending = stats.count > 0 ? stats.total / stats.count : 0;
 
-      let rangeMinBound = stats.hasSpending ? stats.min : averageSpending;
-      let rangeMaxBound = stats.hasSpending ? stats.max : averageSpending;
+      let currentMin: number;
+      let currentMax: number;
+
+      if (stats.hasSpending && stats.min !== Number.POSITIVE_INFINITY) {
+          currentMin = stats.min;
+          currentMax = stats.max;
+      } else {
+          currentMin = 0; // Default to 0 if no spending or min not updated
+          currentMax = 0; // Default to 0 if no spending
+      }
       
-      if (rangeMinBound > rangeMaxBound) {
-          [rangeMinBound, rangeMaxBound] = [rangeMaxBound, rangeMinBound];
+      if (currentMin > currentMax && currentMin === Number.POSITIVE_INFINITY) {
+        // This handles if min remained Infinity but max is 0 (no spending at all)
+        currentMin = 0; 
+      } else if (currentMin > currentMax) {
+        // Unlikely with above, but general safeguard
+        [currentMin, currentMax] = [currentMax, currentMin];
       }
 
-      // Add a tiny, unique epsilon to the max bound to help Recharts differentiate
-      // internally generated keys if ranges are identical for multiple bars.
-      rangeMaxBound = rangeMaxBound + index * 0.000000001;
+      let finalMax = currentMax;
+      // If min and max are identical (e.g. both 0, or single spending value)
+      // add a tiny base epsilon to max to ensure ErrorBar always has a slight range.
+      if (currentMin === finalMax) {
+          finalMax += 0.0000000001; // Tiny base epsilon
+      }
+
+      // Apply a larger, index-based epsilon to max for further differentiation for Recharts keys.
+      finalMax += index * 0.00001; // Index-based epsilon
 
       return {
         name: label,
         averageSpending: averageSpending,
-        minMaxRange: [rangeMinBound, rangeMaxBound] as [number, number],
+        minMaxRange: [currentMin, finalMax] as [number, number],
       };
     });
 
@@ -140,7 +159,7 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
     return <Skeleton className="h-[300px] w-full" />;
   }
 
-  const noSpendingData = chartData.every(d => d.averageSpending === 0 && d.minMaxRange[0] === 0 && d.minMaxRange[1] === 0);
+  const noSpendingData = chartData.every(d => d.averageSpending === 0 && d.minMaxRange[0] === 0 && (d.minMaxRange[1] < 0.0001)); // Check against small epsilon
   if (noSpendingData) {
     return (
       <div className="h-[300px] flex items-center justify-center">
@@ -153,10 +172,10 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
     if (active && payload && payload.length) {
       const dataPoint = payload[0].payload;
       const avgSpending = dataPoint.averageSpending;
-      // Undo the epsilon for display in tooltip to show original max value
-      const originalMax = dataPoint.minMaxRange[1] - (WEEKDAY_LABELS.indexOf(label) * 0.000000001);
-      const minVal = dataPoint.minMaxRange[0];
-
+      
+      // For display, remove the index-based epsilon from max. The tiny base epsilon is negligible for display.
+      const displayMax = dataPoint.minMaxRange[1] - (WEEKDAY_LABELS.indexOf(label) * 0.00001);
+      const displayMin = dataPoint.minMaxRange[0];
 
       return (
         <div className="p-2 bg-background border border-border rounded-md shadow-lg">
@@ -164,16 +183,12 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
           <p className="text-sm" style={{ color: payload[0].fill }}>
             {`Avg: ${formatCurrency(avgSpending, defaultCurrency)}`}
           </p>
-          {(dataPoint.minMaxRange) && ( // Check if minMaxRange exists
-            <>
-              <p className="text-xs text-muted-foreground">
-                {`Max: ${formatCurrency(originalMax, defaultCurrency)}`}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {`Min: ${formatCurrency(minVal, defaultCurrency)}`}
-              </p>
-            </>
-          )}
+          <p className="text-xs text-muted-foreground">
+            {`Max: ${formatCurrency(displayMax, defaultCurrency)}`}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {`Min: ${formatCurrency(displayMin, defaultCurrency)}`}
+          </p>
         </div>
       );
     }
