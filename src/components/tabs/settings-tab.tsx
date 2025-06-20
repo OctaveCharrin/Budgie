@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SUPPORTED_CURRENCIES } from "@/lib/constants";
 
@@ -40,8 +41,12 @@ export function SettingsTab() {
   } = useData();
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | undefined>(undefined);
+  
   const [isDeleteExpensesAlertOpen, setIsDeleteExpensesAlertOpen] = useState(false);
+  const [deleteExpensesConfirmationInput, setDeleteExpensesConfirmationInput] = useState("");
+  
   const [isResetCategoriesAlertOpen, setIsResetCategoriesAlertOpen] = useState(false);
+  const [resetCategoriesConfirmationInput, setResetCategoriesConfirmationInput] = useState("");
   
   const { toast } = useToast();
 
@@ -58,22 +63,32 @@ export function SettingsTab() {
   const sortedCategories = [...categories].sort((a, b) => a.name.localeCompare(b.name));
 
   const handleDeleteAllExpenses = async () => {
+    if (deleteExpensesConfirmationInput !== "DELETE") {
+      toast({ variant: "destructive", title: "Confirmation Failed", description: "Please type DELETE to confirm." });
+      return;
+    }
     try {
       await deleteAllExpenses();
       toast({ title: "Success", description: "All expenses have been deleted." });
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Could not delete expenses." });
     }
+    setDeleteExpensesConfirmationInput("");
     setIsDeleteExpensesAlertOpen(false);
   };
 
   const handleResetCategories = async () => {
+     if (resetCategoriesConfirmationInput !== "DELETE") {
+      toast({ variant: "destructive", title: "Confirmation Failed", description: "Please type DELETE to confirm." });
+      return;
+    }
     try {
       await resetCategoriesContext();
       toast({ title: "Success", description: "Categories have been reset to default." });
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Could not reset categories." });
     }
+    setResetCategoriesConfirmationInput("");
     setIsResetCategoriesAlertOpen(false);
   };
 
@@ -237,7 +252,10 @@ export function SettingsTab() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <AlertDialog open={isDeleteExpensesAlertOpen} onOpenChange={setIsDeleteExpensesAlertOpen}>
+              <AlertDialog open={isDeleteExpensesAlertOpen} onOpenChange={(open) => {
+                setIsDeleteExpensesAlertOpen(open);
+                if (!open) setDeleteExpensesConfirmationInput("");
+              }}>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
                     <Trash2 className="mr-2 h-4 w-4" /> Delete All Expenses
@@ -248,12 +266,26 @@ export function SettingsTab() {
                     <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                     <AlertDialogDescription>
                       This will permanently delete all expense data. This action cannot be undone.
+                      To confirm, please type "DELETE" in the box below.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
+                  <div className="py-2">
+                    <Label htmlFor="deleteExpensesConfirmInput" className="sr-only">
+                      Type DELETE to confirm
+                    </Label>
+                    <Input
+                      id="deleteExpensesConfirmInput"
+                      value={deleteExpensesConfirmationInput}
+                      onChange={(e) => setDeleteExpensesConfirmationInput(e.target.value)}
+                      placeholder='Type "DELETE" here'
+                      className="border-destructive focus-visible:ring-destructive"
+                    />
+                  </div>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel onClick={() => setDeleteExpensesConfirmationInput("")}>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleDeleteAllExpenses}
+                      disabled={deleteExpensesConfirmationInput !== "DELETE"}
                       className="bg-destructive hover:bg-destructive/90"
                     >
                       Yes, delete all expenses
@@ -272,7 +304,10 @@ export function SettingsTab() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <AlertDialog open={isResetCategoriesAlertOpen} onOpenChange={setIsResetCategoriesAlertOpen}>
+              <AlertDialog open={isResetCategoriesAlertOpen} onOpenChange={(open) => {
+                setIsResetCategoriesAlertOpen(open);
+                if (!open) setResetCategoriesConfirmationInput("");
+              }}>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
                     <RotateCcw className="mr-2 h-4 w-4" /> Reset Categories to Default
@@ -283,12 +318,26 @@ export function SettingsTab() {
                     <AlertDialogTitle>Are you sure you want to reset categories?</AlertDialogTitle>
                     <AlertDialogDescription>
                       This will replace all current categories with the default set. Any expenses or subscriptions linked to custom categories will become uncategorized. This action cannot be undone.
+                      To confirm, please type "DELETE" in the box below.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
+                  <div className="py-2">
+                     <Label htmlFor="resetCategoriesConfirmInput" className="sr-only">
+                      Type DELETE to confirm
+                    </Label>
+                    <Input
+                      id="resetCategoriesConfirmInput"
+                      value={resetCategoriesConfirmationInput}
+                      onChange={(e) => setResetCategoriesConfirmationInput(e.target.value)}
+                      placeholder='Type "DELETE" here'
+                      className="border-destructive focus-visible:ring-destructive"
+                    />
+                  </div>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel onClick={() => setResetCategoriesConfirmationInput("")}>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleResetCategories}
+                      disabled={resetCategoriesConfirmationInput !== "DELETE"}
                       className="bg-destructive hover:bg-destructive/90"
                     >
                       Yes, reset categories
@@ -303,3 +352,6 @@ export function SettingsTab() {
     </div>
   );
 }
+
+
+    
