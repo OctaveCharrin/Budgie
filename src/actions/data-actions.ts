@@ -6,8 +6,16 @@ import { DATA_FILE_PATHS, DEFAULT_CATEGORIES, DEFAULT_SETTINGS, SUPPORTED_CURREN
 import type { Expense, Subscription, Category, AppSettings, CurrencyCode } from '@/lib/types';
 import { convertAmountToAllCurrencies } from '@/services/exchange-rate-service';
 import { openDb, initializeDb } from '@/lib/db';
+import { getDay as getDayFns } from 'date-fns'; // For day of week calculation
 
 const generateId = () => crypto.randomUUID();
+
+// Helper to calculate day of week (0=Monday, ..., 6=Sunday)
+function calculateDayOfWeek(dateString: string): number {
+  const date = new Date(dateString);
+  const dayFns = getDayFns(date); // 0 for Sunday, 1 for Monday, ..., 6 for Saturday
+  return dayFns === 0 ? 6 : dayFns - 1;
+}
 
 // Helper to map amounts object to DB column values
 function mapAmountsToDbPlaceholders(amounts: Record<CurrencyCode, number>): Record<string, number> {
@@ -31,14 +39,12 @@ function mapDbRowToAmounts(row: any): Record<CurrencyCode, number> {
 const amountDbColumns = SUPPORTED_CURRENCIES.map(c => `amount_${c.toLowerCase()}`).join(', ');
 const amountDbValuePlaceholders = SUPPORTED_CURRENCIES.map(c => `$amount_${c.toLowerCase()}`).join(', ');
 
-
-// Initialize DB connection early
 async function getDb() {
-  await initializeDb(); // Ensures tables are created
+  await initializeDb(); 
   return openDb();
 }
 
-// Settings Actions (remain file-based)
+// Settings Actions
 export async function getSettingsAction(): Promise<AppSettings> {
   return readData<AppSettings>(DATA_FILE_PATHS.settings, DEFAULT_SETTINGS);
 }
@@ -48,10 +54,9 @@ export async function updateSettingsAction(updatedSettings: AppSettings): Promis
   return updatedSettings;
 }
 
-// Category Actions (now JSON-based)
+// Category Actions
 export async function getCategoriesAction(): Promise<Category[]> {
   const categories = await readData<Category[]>(DATA_FILE_PATHS.categories, DEFAULT_CATEGORIES);
-  // Ensure categories are sorted by name by default if needed, or do it client-side
   return categories.sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -64,7 +69,7 @@ export async function addCategoryAction(categoryData: Omit<Category, 'id' | 'isD
     id: generateId(),
     name: categoryData.name,
     icon: categoryData.icon,
-    isDefault: false, // New custom categories are not default
+    isDefault: false,
   };
   const updatedCategories = [...categories, newCategory].sort((a, b) => a.name.localeCompare(b.name));
   await writeData(DATA_FILE_PATHS.categories, updatedCategories);
@@ -114,50 +119,52 @@ export async function deleteCategoryAction(id: string): Promise<{ success: boole
 }
 
 export async function resetCategoriesAction(): Promise<Category[]> {
-  // DEFAULT_CATEGORIES are already sorted by name if needed, or sort them here
   const sortedDefaultCategories = [...DEFAULT_CATEGORIES].sort((a,b) => a.name.localeCompare(b.name));
   await writeData(DATA_FILE_PATHS.categories, sortedDefaultCategories);
   return sortedDefaultCategories;
 }
 
-// Expense Actions (remain DB-based)
+// Expense Actions
 export async function getExpensesAction(): Promise<Expense[]> {
   const db = await getDb();
-  const rows = await db.all(`SELECT id, date, categoryId, originalAmount, originalCurrency, ${amountDbColumns}, description FROM expenses ORDER BY date DESC`);
+  const rows = await db.all(`SELECT id, date, categoryId, originalAmount, originalCurrency, day_of_week, ${amountDbColumns}, description FROM expenses ORDER BY date DESC`);
   return rows.map(row => ({
     id: row.id,
     date: row.date,
     categoryId: row.categoryId,
     originalAmount: Number(row.originalAmount),
     originalCurrency: row.originalCurrency as CurrencyCode,
+    dayOfWeek: Number(row.day_of_week),
     amounts: mapDbRowToAmounts(row),
     description: row.description,
   }));
 }
 
 export async function addExpenseAction(
-  expenseData: Omit<Expense, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode }
+  expenseData: Omit<Expense, 'id' | 'amounts' | 'dayOfWeek'> & { originalAmount: number; originalCurrency: CurrencyCode }
 ): Promise<Expense> {
   const db = await getDb();
   const amounts = await convertAmountToAllCurrencies(expenseData.originalAmount, expenseData.originalCurrency);
   const newExpenseId = generateId();
+  const dayOfWeek = calculateDayOfWeek(expenseData.date);
   
   const dbAmountParams = mapAmountsToDbPlaceholders(amounts);
 
   await db.run(
-    `INSERT INTO expenses (id, date, categoryId, originalAmount, originalCurrency, ${amountDbColumns}, description)
-     VALUES ($id, $date, $categoryId, $originalAmount, $originalCurrency, ${amountDbValuePlaceholders}, $description)`,
+    `INSERT INTO expenses (id, date, categoryId, originalAmount, originalCurrency, day_of_week, ${amountDbColumns}, description)
+     VALUES ($id, $date, $categoryId, $originalAmount, $originalCurrency, $day_of_week, ${amountDbValuePlaceholders}, $description)`,
     {
       $id: newExpenseId,
       $date: expenseData.date,
       $categoryId: expenseData.categoryId,
       $originalAmount: expenseData.originalAmount,
       $originalCurrency: expenseData.originalCurrency,
+      $day_of_week: dayOfWeek,
       ...dbAmountParams,
       $description: expenseData.description,
     }
   );
-  return { ...expenseData, id: newExpenseId, amounts };
+  return { ...expenseData, id: newExpenseId, amounts, dayOfWeek };
 }
 
 export async function updateExpenseAction(updatedExpenseData: Expense): Promise<Expense> {
@@ -176,10 +183,11 @@ export async function updateExpenseAction(updatedExpenseData: Expense): Promise<
     amounts = await convertAmountToAllCurrencies(updatedExpenseData.originalAmount, updatedExpenseData.originalCurrency);
   }
   
+  const dayOfWeek = calculateDayOfWeek(updatedExpenseData.date);
   const dbAmountParams = mapAmountsToDbPlaceholders(amounts);
 
   await db.run(
-    `UPDATE expenses SET date = $date, categoryId = $categoryId, originalAmount = $originalAmount, originalCurrency = $originalCurrency, ${SUPPORTED_CURRENCIES.map(c => `amount_${c.toLowerCase()} = $amount_${c.toLowerCase()}`).join(', ')}, description = $description
+    `UPDATE expenses SET date = $date, categoryId = $categoryId, originalAmount = $originalAmount, originalCurrency = $originalCurrency, day_of_week = $day_of_week, ${SUPPORTED_CURRENCIES.map(c => `amount_${c.toLowerCase()} = $amount_${c.toLowerCase()}`).join(', ')}, description = $description
      WHERE id = $id`,
     {
       $id: updatedExpenseData.id,
@@ -187,11 +195,12 @@ export async function updateExpenseAction(updatedExpenseData: Expense): Promise<
       $categoryId: updatedExpenseData.categoryId,
       $originalAmount: updatedExpenseData.originalAmount,
       $originalCurrency: updatedExpenseData.originalCurrency,
+      $day_of_week: dayOfWeek,
       ...dbAmountParams,
       $description: updatedExpenseData.description,
     }
   );
-  return { ...updatedExpenseData, amounts };
+  return { ...updatedExpenseData, amounts, dayOfWeek }; // Ensure dayOfWeek is part of returned object
 }
 
 export async function deleteExpenseAction(id: string): Promise<{ success: boolean }> {
@@ -206,7 +215,7 @@ export async function deleteAllExpensesAction(): Promise<{ success: boolean }> {
   return { success: true };
 }
 
-// Subscription Actions (remain DB-based)
+// Subscription Actions
 export async function getSubscriptionsAction(): Promise<Subscription[]> {
   const db = await getDb();
   const rows = await db.all(`SELECT id, name, categoryId, originalAmount, originalCurrency, ${amountDbColumns}, startDate, endDate, description FROM subscriptions ORDER BY name ASC`);

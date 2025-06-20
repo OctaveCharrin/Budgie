@@ -18,6 +18,7 @@ export interface Expense {
   originalAmount: number;
   originalCurrency: CurrencyCode;
   amounts: Record<CurrencyCode, number>; // Stores amount in all supported currencies
+  dayOfWeek: number; // 0 for Monday, 1 for Tuesday, ..., 6 for Sunday
   description?: string;
 }
 
@@ -39,8 +40,14 @@ export interface AppSettings {
 
 export type ReportPeriod = 'weekly' | 'monthly' | 'yearly';
 
-// Updated to reflect that 'value' is the generic term for the pie chart data key
 export interface ChartDataPoint {
-  name: string; // Typically category name
-  value: number; // The aggregated amount for that category in the default currency
+  name: string;
+  value: number; 
 }
+
+export interface DailyTotalDataPoint {
+  rawDate: string; // e.g., '2023-10-27'
+  displayDate: string; // e.g., 'Oct 27' or '27' depending on period
+  amount: number;
+}
+
