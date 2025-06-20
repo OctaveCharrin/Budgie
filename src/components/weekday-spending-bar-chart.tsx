@@ -59,7 +59,7 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
       count: number;
       max: number;
       min: number;
-      hasSpending: boolean; // To track if any positive spending occurred
+      hasSpending: boolean; 
     }> = Array(7).fill(null).map(() => ({
       total: 0,
       count: 0,
@@ -106,12 +106,9 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
         weekdayStats[adjustedIndex].max = Math.max(weekdayStats[adjustedIndex].max, dailySpending);
         weekdayStats[adjustedIndex].min = Math.min(weekdayStats[adjustedIndex].min, dailySpending);
       } else {
-        // If dailySpending is 0, still consider it for min if other days had spending,
-        // or if this is the first day and hasSpending is not yet true.
          if (weekdayStats[adjustedIndex].hasSpending) {
              weekdayStats[adjustedIndex].min = Math.min(weekdayStats[adjustedIndex].min, 0);
          }
-         // If max is still 0 (initial value), it remains 0 for a 0 spending day.
       }
     });
     
@@ -119,31 +116,21 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
       const stats = weekdayStats[index];
       const averageSpending = stats.count > 0 ? stats.total / stats.count : 0;
 
-      let minForRange: number;
-      let maxForRange: number;
-
-      if (stats.count === 0) { // No occurrences of this weekday in the period
-        minForRange = 0;
-        maxForRange = 0;
-      } else if (!stats.hasSpending) { // Weekday occurred, but all instances had 0 spending
-        minForRange = 0;
-        maxForRange = 0;
-      } else { // Weekday occurred and had some positive spending
-        minForRange = stats.min;
-        maxForRange = stats.max;
-      }
+      let rangeMinBound = stats.hasSpending ? stats.min : averageSpending;
+      let rangeMaxBound = stats.hasSpending ? stats.max : averageSpending;
       
-      // Ensure the error bar range makes sense relative to the average
-      // For example, if average is 50, min is 60 (due to some calculation quirk), fix it.
-      // Min should be <= average, Max should be >= average.
-      // Also, min should be <= max.
-      const finalMin = Math.min(minForRange, averageSpending);
-      const finalMax = Math.max(maxForRange, averageSpending);
+      if (rangeMinBound > rangeMaxBound) {
+          [rangeMinBound, rangeMaxBound] = [rangeMaxBound, rangeMinBound];
+      }
+
+      // Add a tiny, unique epsilon to the max bound to help Recharts differentiate
+      // internally generated keys if ranges are identical for multiple bars.
+      rangeMaxBound = rangeMaxBound + index * 0.000000001;
 
       return {
         name: label,
         averageSpending: averageSpending,
-        minMaxRange: [finalMin, finalMax].sort((a,b) => a-b) as [number, number],
+        minMaxRange: [rangeMinBound, rangeMaxBound] as [number, number],
       };
     });
 
@@ -166,7 +153,10 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
     if (active && payload && payload.length) {
       const dataPoint = payload[0].payload;
       const avgSpending = dataPoint.averageSpending;
-      const minMax = dataPoint.minMaxRange;
+      // Undo the epsilon for display in tooltip to show original max value
+      const originalMax = dataPoint.minMaxRange[1] - (WEEKDAY_LABELS.indexOf(label) * 0.000000001);
+      const minVal = dataPoint.minMaxRange[0];
+
 
       return (
         <div className="p-2 bg-background border border-border rounded-md shadow-lg">
@@ -174,13 +164,13 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
           <p className="text-sm" style={{ color: payload[0].fill }}>
             {`Avg: ${formatCurrency(avgSpending, defaultCurrency)}`}
           </p>
-          {minMax && (
+          {(dataPoint.minMaxRange) && ( // Check if minMaxRange exists
             <>
               <p className="text-xs text-muted-foreground">
-                {`Max: ${formatCurrency(minMax[1], defaultCurrency)}`}
+                {`Max: ${formatCurrency(originalMax, defaultCurrency)}`}
               </p>
               <p className="text-xs text-muted-foreground">
-                {`Min: ${formatCurrency(minMax[0], defaultCurrency)}`}
+                {`Min: ${formatCurrency(minVal, defaultCurrency)}`}
               </p>
             </>
           )}
@@ -220,3 +210,4 @@ export function WeekdaySpendingBarChart({ period, selectedDate }: WeekdaySpendin
     </div>
   );
 }
+
