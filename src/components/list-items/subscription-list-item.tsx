@@ -2,7 +2,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { Pencil, Trash2, HelpCircle } from "lucide-react"; // Added HelpCircle
+import { Pencil, Trash2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useData } from "@/contexts/data-context";
@@ -20,6 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrency } from "@/lib/utils";
 
 interface SubscriptionListItemProps {
   subscription: Subscription;
@@ -27,17 +28,22 @@ interface SubscriptionListItemProps {
 }
 
 export function SubscriptionListItem({ subscription, onEdit }: SubscriptionListItemProps) {
-  const { getCategoryById, deleteSubscription } = useData();
+  const { getCategoryById, deleteSubscription, settings, isLoading: isDataLoading } = useData();
   const { toast } = useToast();
   const category = getCategoryById(subscription.categoryId);
 
   const categoryName = category?.name || "Uncategorized";
-  const categoryIcon = category?.icon || "HelpCircle"; // Fallback to HelpCircle icon
+  const categoryIcon = category?.icon || "HelpCircle";
 
   const handleDelete = () => {
     deleteSubscription(subscription.id);
     toast({ title: "Subscription Deleted", description: "The subscription has been successfully deleted." });
   };
+
+  // Subscriptions are assumed to be in the default currency
+  const formattedAmount = isDataLoading 
+    ? "Loading..."
+    : formatCurrency(subscription.amount, settings.defaultCurrency);
 
   return (
     <Card className="w-full shadow-md hover:shadow-lg transition-shadow duration-200">
@@ -53,7 +59,7 @@ export function SubscriptionListItem({ subscription, onEdit }: SubscriptionListI
             </p>
           </div>
           <p className="text-xl font-semibold text-primary">
-            ${subscription.amount.toFixed(2)}<span className="text-sm text-muted-foreground">/month</span>
+            {formattedAmount}<span className="text-sm text-muted-foreground">/month</span>
           </p>
         </div>
       </CardHeader>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,14 +27,16 @@ import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { useData } from "@/contexts/data-context";
-import type { Expense } from "@/lib/types";
+import type { Expense, CurrencyCode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { SUPPORTED_CURRENCIES } from "@/lib/constants";
 
 const formSchema = z.object({
   date: z.date({ required_error: "Date is required." }),
   categoryId: z.string().min(1, "Category is required."),
-  amount: z.coerce.number().positive("Amount must be positive."),
+  originalAmount: z.coerce.number().positive("Amount must be positive."),
+  originalCurrency: z.enum(SUPPORTED_CURRENCIES, { required_error: "Currency is required." }),
   description: z.string().optional(),
 });
 
@@ -41,34 +44,78 @@ type ExpenseFormValues = z.infer<typeof formSchema>;
 
 interface ExpenseFormProps {
   expense?: Expense;
-  onSave: () => void; // Callback to close dialog or refresh list
+  onSave: () => void; 
 }
 
 export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
-  const { categories, addExpense, updateExpense } = useData();
+  const { categories, addExpense, updateExpense, settings, isLoading: isDataLoading } = useData();
   const { toast } = useToast();
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: expense
-      ? { ...expense, date: new Date(expense.date), amount: Number(expense.amount) }
-      : { date: new Date(), description: "", amount: undefined },
+      ? { 
+          date: new Date(expense.date), 
+          categoryId: expense.categoryId,
+          originalAmount: Number(expense.originalAmount), 
+          originalCurrency: expense.originalCurrency,
+          description: expense.description || "" 
+        }
+      : { 
+          date: new Date(), 
+          originalAmount: undefined, 
+          originalCurrency: settings.defaultCurrency, 
+          description: "",
+          categoryId: ""
+        },
   });
 
-  function onSubmit(values: ExpenseFormValues) {
-    const expenseData = {
-      ...values,
-      date: values.date.toISOString(),
-    };
-    if (expense) {
-      updateExpense({ ...expenseData, id: expense.id });
+  // Update default currency if settings change and it's a new expense form
+  useEffect(() => {
+    if (!expense && !isDataLoading) {
+      form.reset({ 
+        date: new Date(), 
+        originalAmount: undefined, 
+        originalCurrency: settings.defaultCurrency, 
+        description: "",
+        categoryId: ""
+      });
+    }
+  }, [settings.defaultCurrency, expense, form, isDataLoading]);
+
+
+  async function onSubmit(values: ExpenseFormValues) {
+    if (expense) { // Editing existing expense
+      const updatedExpenseData: Expense = {
+        ...expense, // Retain ID and potentially unchanged amounts
+        date: values.date.toISOString(),
+        categoryId: values.categoryId,
+        originalAmount: values.originalAmount,
+        originalCurrency: values.originalCurrency,
+        description: values.description,
+        // amounts will be recalculated by the server action if originalAmount/Currency changed
+      };
+      await updateExpense(updatedExpenseData);
       toast({ title: "Expense Updated", description: "Your expense has been successfully updated." });
-    } else {
-      addExpense(expenseData);
+    } else { // Adding new expense
+      const newExpenseData = {
+        date: values.date.toISOString(),
+        categoryId: values.categoryId,
+        originalAmount: values.originalAmount,
+        originalCurrency: values.originalCurrency,
+        description: values.description,
+      };
+      await addExpense(newExpenseData);
       toast({ title: "Expense Added", description: "New expense has been successfully added." });
     }
     onSave();
-    form.reset({ date: new Date(), categoryId: '', amount: undefined, description: '' });
+    form.reset({ 
+        date: new Date(), 
+        categoryId: '', 
+        originalAmount: undefined, 
+        originalCurrency: settings.defaultCurrency, 
+        description: '' 
+    });
   }
 
   return (
@@ -112,20 +159,46 @@ export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
             </FormItem>
           )}
         />
-
-        <FormField
-          control={form.control}
-          name="amount"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Amount</FormLabel>
-              <FormControl>
-                <Input type="number" placeholder="0.00" {...field} step="0.01" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        
+        <div className="flex gap-4">
+            <FormField
+            control={form.control}
+            name="originalAmount"
+            render={({ field }) => (
+                <FormItem className="flex-grow">
+                <FormLabel>Amount</FormLabel>
+                <FormControl>
+                    <Input type="number" placeholder="0.00" {...field} step="0.01" />
+                </FormControl>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
+            <FormField
+            control={form.control}
+            name="originalCurrency"
+            render={({ field }) => (
+                <FormItem className="w-[120px]">
+                <FormLabel>Currency</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Currency" />
+                    </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                    {SUPPORTED_CURRENCIES.map((currency) => (
+                        <SelectItem key={currency} value={currency}>
+                        {currency}
+                        </SelectItem>
+                    ))}
+                    </SelectContent>
+                </Select>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
+        </div>
 
         <FormField
           control={form.control}

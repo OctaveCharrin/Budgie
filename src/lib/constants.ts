@@ -1,4 +1,6 @@
-import type { Category } from './types';
+import type { Category, AppSettings, CurrencyCode } from './types';
+import { SUPPORTED_CURRENCIES } from './types';
+
 
 export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'restaurant', name: 'Restaurant', icon: 'UtensilsCrossed' },
@@ -13,9 +15,16 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'tech', name: 'Tech', icon: 'Laptop' },
 ];
 
-// Changed from LOCAL_STORAGE_KEYS to DATA_FILE_PATHS
 export const DATA_FILE_PATHS = {
   expenses: 'expenses.json',
   subscriptions: 'subscriptions.json',
   categories: 'categories.json',
+  settings: 'settings.json',
 };
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  defaultCurrency: 'USD',
+};
+
+// Re-export SUPPORTED_CURRENCIES for easier import elsewhere
+export { SUPPORTED_CURRENCIES };

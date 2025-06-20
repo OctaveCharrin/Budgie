@@ -3,11 +3,11 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Trash2, RotateCcw } from "lucide-react";
+import { PlusCircle, Trash2, RotateCcw, Settings2 } from "lucide-react";
 import { useData } from "@/contexts/data-context";
 import { CategoryForm } from "@/components/forms/category-form";
 import { CategoryListItem } from "@/components/list-items/category-list-item";
-import type { Category } from "@/lib/types";
+import type { Category, AppSettings, CurrencyCode } from "@/lib/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -24,13 +24,25 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { SUPPORTED_CURRENCIES } from "@/lib/constants";
+
 
 export function SettingsTab() {
-  const { categories, isLoading: isDataLoading, deleteAllExpenses, resetCategories: resetCategoriesContext } = useData();
+  const { 
+    categories, 
+    isLoading: isDataLoading, 
+    deleteAllExpenses, 
+    resetCategories: resetCategoriesContext,
+    settings,
+    updateSettings 
+  } = useData();
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | undefined>(undefined);
   const [isDeleteExpensesAlertOpen, setIsDeleteExpensesAlertOpen] = useState(false);
   const [isResetCategoriesAlertOpen, setIsResetCategoriesAlertOpen] = useState(false);
+  
   const { toast } = useToast();
 
   const handleEditCategory = (category: Category) => {
@@ -64,10 +76,19 @@ export function SettingsTab() {
     }
     setIsResetCategoriesAlertOpen(false);
   };
+
+  const handleDefaultCurrencyChange = (currency: CurrencyCode) => {
+    updateSettings({ defaultCurrency: currency });
+  };
   
   if (isDataLoading) {
     return (
       <div className="space-y-8 p-1">
+        <section>
+           <h2 className="text-2xl font-semibold font-headline mb-4"><Skeleton className="h-9 w-1/2" /></h2>
+           <Card><CardContent className="p-4"><Skeleton className="h-10 w-48" /></CardContent></Card>
+        </section>
+        <Separator/>
         <section>
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold font-headline"><Skeleton className="h-9 w-48" /></h2>
@@ -107,6 +128,42 @@ export function SettingsTab() {
   return (
     <div className="space-y-8 p-1">
       <section>
+        <h2 className="text-2xl font-semibold font-headline mb-4 flex items-center">
+            <Settings2 className="mr-3 h-7 w-7 text-primary" /> Currency Settings
+        </h2>
+        <Card className="shadow-md">
+            <CardHeader>
+                <CardTitle>Default Display Currency</CardTitle>
+                <CardDescription>
+                    Choose the default currency for displaying amounts in dashboards and reports. Expenses will still be stored with their original currency and converted values.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="max-w-xs">
+                    <Label htmlFor="defaultCurrencySelect" className="sr-only">Default Currency</Label>
+                    <Select
+                        value={settings.defaultCurrency}
+                        onValueChange={(value) => handleDefaultCurrencyChange(value as CurrencyCode)}
+                    >
+                        <SelectTrigger id="defaultCurrencySelect">
+                            <SelectValue placeholder="Select default currency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                        {SUPPORTED_CURRENCIES.map((currency) => (
+                            <SelectItem key={currency} value={currency}>
+                            {currency}
+                            </SelectItem>
+                        ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </CardContent>
+        </Card>
+      </section>
+
+      <Separator />
+      
+      <section>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-semibold font-headline">Manage Categories</h2>
           <Dialog open={isCategoryDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) closeCategoryDialogAndReset(); else setIsCategoryDialogOpen(true); }}>
@@ -119,6 +176,7 @@ export function SettingsTab() {
               <DialogHeader>
                 <DialogTitle>{editingCategory ? "Edit Category" : "Add New Category"}</DialogTitle>
               </DialogHeader>
+              {/* For simplicity, CategoryForm remains as is, defaulting icon to DollarSign */}
               <CategoryForm category={editingCategory} onSave={closeCategoryDialogAndReset} />
             </DialogContent>
           </Dialog>

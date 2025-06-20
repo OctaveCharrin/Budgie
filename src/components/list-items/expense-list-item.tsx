@@ -2,7 +2,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { Pencil, Trash2, HelpCircle } from "lucide-react"; // Added HelpCircle
+import { Pencil, Trash2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useData } from "@/contexts/data-context";
@@ -20,6 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { formatCurrency } from "@/lib/utils";
 
 interface ExpenseListItemProps {
   expense: Expense;
@@ -27,17 +28,27 @@ interface ExpenseListItemProps {
 }
 
 export function ExpenseListItem({ expense, onEdit }: ExpenseListItemProps) {
-  const { getCategoryById, deleteExpense } = useData();
+  const { getCategoryById, deleteExpense, settings, isLoading: isDataLoading } = useData();
   const { toast } = useToast();
   const category = getCategoryById(expense.categoryId);
 
   const categoryName = category?.name || "Uncategorized";
-  const categoryIcon = category?.icon || "HelpCircle"; // Fallback to HelpCircle icon
+  const categoryIcon = category?.icon || "HelpCircle";
 
   const handleDelete = () => {
     deleteExpense(expense.id);
     toast({ title: "Expense Deleted", description: "The expense has been successfully deleted." });
   };
+
+  const displayAmount = expense.amounts && settings.defaultCurrency
+    ? expense.amounts[settings.defaultCurrency]
+    : expense.originalAmount; // Fallback if amounts not yet populated or settings loading
+
+  const formattedDisplayAmount = isDataLoading 
+    ? "Loading..." 
+    : formatCurrency(displayAmount, settings.defaultCurrency);
+  
+  const formattedOriginalAmount = formatCurrency(expense.originalAmount, expense.originalCurrency);
 
   return (
     <Card className="w-full shadow-md hover:shadow-lg transition-shadow duration-200">
@@ -50,9 +61,16 @@ export function ExpenseListItem({ expense, onEdit }: ExpenseListItemProps) {
             </CardTitle>
             <p className="text-xs text-muted-foreground">{format(new Date(expense.date), "PPP")}</p>
           </div>
-          <p className="text-xl font-semibold text-primary">
-            ${expense.amount.toFixed(2)}
-          </p>
+          <div className="text-right">
+            <p className="text-xl font-semibold text-primary">
+              {formattedDisplayAmount}
+            </p>
+            {expense.originalCurrency !== settings.defaultCurrency && (
+              <p className="text-xs text-muted-foreground">
+                ({formattedOriginalAmount})
+              </p>
+            )}
+          </div>
         </div>
       </CardHeader>
       {expense.description && (

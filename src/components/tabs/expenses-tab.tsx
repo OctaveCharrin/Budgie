@@ -13,11 +13,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatCurrency } from "@/lib/utils";
 
 const SELECT_ALL_CATEGORIES_VALUE = "__ALL_CATEGORIES__";
 
 export function ExpensesTab() {
-  const { expenses, categories, getCategoryById, isLoading } = useData();
+  const { expenses, categories, getCategoryById, isLoading, settings, getAmountInDefaultCurrency } = useData();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | undefined>(undefined);
   const [searchTerm, setSearchTerm] = useState("");
@@ -40,16 +41,21 @@ export function ExpensesTab() {
       const category = getCategoryById(expense.categoryId);
       const descriptionMatch = expense.description?.toLowerCase().includes(searchTerm.toLowerCase());
       const categoryNameMatch = category?.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const amountMatch = expense.amount.toString().includes(searchTerm);
+      // Search by formatted original amount and currency
+      const originalAmountFormatted = formatCurrency(expense.originalAmount, expense.originalCurrency).toLowerCase();
+      const amountMatch = originalAmountFormatted.includes(searchTerm.toLowerCase()) || expense.originalAmount.toString().includes(searchTerm);
+      
       const searchMatch = searchTerm === "" || descriptionMatch || categoryNameMatch || amountMatch;
       const categoryFilterMatch = filterCategory === SELECT_ALL_CATEGORIES_VALUE || expense.categoryId === filterCategory;
       return searchMatch && categoryFilterMatch;
     })
     .sort((a, b) => {
+      const amountA = getAmountInDefaultCurrency(a);
+      const amountB = getAmountInDefaultCurrency(b);
       switch (sortOrder) {
         case "date-asc": return new Date(a.date).getTime() - new Date(b.date).getTime();
-        case "amount-desc": return b.amount - a.amount;
-        case "amount-asc": return a.amount - b.amount;
+        case "amount-desc": return amountB - amountA;
+        case "amount-asc": return amountA - amountB;
         case "date-desc":
         default:
           return new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -96,7 +102,7 @@ export function ExpensesTab() {
 
       <div className="flex flex-col sm:flex-row gap-4 my-4">
         <Input 
-          placeholder="Search expenses (description, category, amount)..."
+          placeholder="Search (desc, category, amount, currency e.g. $10)..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="flex-grow"

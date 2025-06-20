@@ -4,27 +4,29 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { PlusCircle, TrendingUp, Wallet, RefreshCcw } from "lucide-react";
+import { PlusCircle, TrendingUp, Wallet } from "lucide-react";
 import { useData } from "@/contexts/data-context";
 import { ExpenseForm } from "@/components/forms/expense-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ExpenseListItem } from "@/components/list-items/expense-list-item";
 import type { Expense } from "@/lib/types";
-import { format, startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO, addYears } from 'date-fns';
+import { format as formatDateFns, startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO, addYears } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatCurrency } from "@/lib/utils";
 
 export function DashboardTab() {
-  const { expenses, subscriptions, isLoading } = useData();
+  const { expenses, subscriptions, isLoading, settings, getAmountInDefaultCurrency } = useData();
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | undefined>(undefined);
 
   const [currentMonthTotal, setCurrentMonthTotal] = useState(0);
   const [lastMonthTotal, setLastMonthTotal] = useState(0);
   const [percentageChange, setPercentageChange] = useState(0);
+  const [totalSubscriptionsAmount, setTotalSubscriptionsAmount] = useState(0);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading || !settings.defaultCurrency) return;
 
     const now = new Date();
     const currentMonthStart = startOfMonth(now);
@@ -36,13 +38,16 @@ export function DashboardTab() {
       let total = 0;
       expenses.forEach(exp => {
         if (isWithinInterval(parseISO(exp.date), { start, end })) {
-          total += exp.amount;
+          total += getAmountInDefaultCurrency(exp);
         }
       });
+      // Assuming subscriptions are monthly and their 'amount' is in default currency or needs conversion
       subscriptions.forEach(sub => {
+         // A more robust check would be if the subscription is active during any part of the 'start' to 'end' period.
+         // For simplicity, if it started before the period ends and is within the current month context.
         const subStartDate = parseISO(sub.startDate);
-        if (subStartDate <= end && isWithinInterval(start, { start: subStartDate, end: addYears(subStartDate, 100) })) {
-          total += sub.amount;
+         if (subStartDate <= end && isWithinInterval(start, { start: subStartDate, end: addYears(subStartDate, 100) })) {
+            total += sub.amount; // Assuming sub.amount is already in/convertible to default currency
         }
       });
       return total;
@@ -57,12 +62,16 @@ export function DashboardTab() {
     if (previousTotal > 0) {
       setPercentageChange(((currentTotal - previousTotal) / previousTotal) * 100);
     } else if (currentTotal > 0) {
-      setPercentageChange(100);
+      setPercentageChange(100); // Went from 0 to something
     } else {
-      setPercentageChange(0);
+      setPercentageChange(0); // Both 0 or current is 0 and previous was 0
     }
 
-  }, [expenses, subscriptions, isLoading]);
+    // Calculate total subscriptions amount
+    const subsTotal = subscriptions.reduce((acc, sub) => acc + sub.amount, 0);
+    setTotalSubscriptionsAmount(subsTotal);
+
+  }, [expenses, subscriptions, isLoading, settings, getAmountInDefaultCurrency]);
 
 
   const recentExpenses = [...expenses]
@@ -127,17 +136,18 @@ export function DashboardTab() {
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${currentMonthTotal.toFixed(2)}</div>
+            <div className="text-2xl font-bold">
+                {formatCurrency(currentMonthTotal, settings.defaultCurrency)}
+            </div>
             <p className="text-xs text-muted-foreground">
               {percentageChange !== 0 && (
                 <>
                   {percentageChange > 0 ? '+' : ''}{percentageChange.toFixed(1)}% 
-                  from last month (${lastMonthTotal.toFixed(2)})
+                  from last month ({formatCurrency(lastMonthTotal, settings.defaultCurrency)})
                 </>
               )}
               {percentageChange === 0 && lastMonthTotal > 0 && "No change from last month"}
-              {percentageChange === 0 && lastMonthTotal === 0 && "No spending recorded yet"}
-
+              {percentageChange === 0 && lastMonthTotal === 0 && currentMonthTotal === 0 && "No spending recorded yet"}
             </p>
           </CardContent>
         </Card>
@@ -147,7 +157,9 @@ export function DashboardTab() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${subscriptions.reduce((acc, sub) => acc + sub.amount, 0).toFixed(2)} / month</div>
+            <div className="text-2xl font-bold">
+                {formatCurrency(totalSubscriptionsAmount, settings.defaultCurrency)} / month
+            </div>
             <p className="text-xs text-muted-foreground">{subscriptions.length} active subscriptions</p>
           </CardContent>
         </Card>
@@ -173,7 +185,7 @@ export function DashboardTab() {
       <div>
         <h2 className="text-xl font-semibold mb-3 font-headline">Recent Expenses</h2>
         {recentExpenses.length > 0 ? (
-          <ScrollArea className="h-[calc(100vh_-_28rem)] md:h-[calc(100vh_-_26rem)]"> {/* Adjust height as needed */}
+          <ScrollArea className="h-[calc(100vh_-_28rem)] md:h-[calc(100vh_-_26rem)]">
             <div className="space-y-3 pr-3">
               {recentExpenses.map(expense => (
                 <ExpenseListItem key={expense.id} expense={expense} onEdit={handleEditExpense} />

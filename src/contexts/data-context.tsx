@@ -3,12 +3,13 @@
 
 import type { ReactNode } from 'react';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { Expense, Subscription, Category } from '@/lib/types';
-import { DEFAULT_CATEGORIES } from '@/lib/constants';
+import type { Expense, Subscription, Category, AppSettings, CurrencyCode } from '@/lib/types';
+import { DEFAULT_CATEGORIES, DEFAULT_SETTINGS, SUPPORTED_CURRENCIES } from '@/lib/constants';
 import {
   getCategoriesAction, addCategoryAction, updateCategoryAction, deleteCategoryAction, resetCategoriesAction,
   getExpensesAction, addExpenseAction, updateExpenseAction, deleteExpenseAction, deleteAllExpensesAction,
-  getSubscriptionsAction, addSubscriptionAction, updateSubscriptionAction, deleteSubscriptionAction
+  getSubscriptionsAction, addSubscriptionAction, updateSubscriptionAction, deleteSubscriptionAction,
+  getSettingsAction, updateSettingsAction
 } from '@/actions/data-actions';
 import { useToast } from "@/hooks/use-toast";
 
@@ -16,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 interface DataContextProps {
   expenses: Expense[];
   setExpenses: (expenses: Expense[] | ((val: Expense[]) => Expense[])) => void;
-  addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>;
+  addExpense: (expenseData: Omit<Expense, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode }) => Promise<void>;
   updateExpense: (expense: Expense) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
   deleteAllExpenses: () => Promise<void>;
@@ -32,7 +33,10 @@ interface DataContextProps {
   deleteCategory: (id: string) => Promise<void>;
   resetCategories: () => Promise<void>;
   getCategoryById: (id: string) => Category | undefined;
+  settings: AppSettings;
+  updateSettings: (newSettings: Partial<AppSettings>) => Promise<void>;
   isLoading: boolean;
+  getAmountInDefaultCurrency: (item: Expense | Subscription) => number;
 }
 
 const DataContext = createContext<DataContextProps | undefined>(undefined);
@@ -41,26 +45,31 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [fetchedCategories, fetchedExpenses, fetchedSubscriptions] = await Promise.all([
+      const [fetchedCategories, fetchedExpenses, fetchedSubscriptions, fetchedSettings] = await Promise.all([
         getCategoriesAction(),
         getExpensesAction(),
-        getSubscriptionsAction()
+        getSubscriptionsAction(),
+        getSettingsAction()
       ]);
       setCategories(fetchedCategories.length > 0 ? fetchedCategories : DEFAULT_CATEGORIES);
       setExpenses(fetchedExpenses);
       setSubscriptions(fetchedSubscriptions);
+      setSettings(fetchedSettings || DEFAULT_SETTINGS);
     } catch (error) {
       console.error("Failed to load data:", error);
       toast({ variant: "destructive", title: "Error Loading Data", description: "Could not load data from the server." });
+      // Initialize with defaults on error
       setCategories(DEFAULT_CATEGORIES);
       setExpenses([]);
       setSubscriptions([]);
+      setSettings(DEFAULT_SETTINGS);
     } finally {
       setIsLoading(false);
     }
@@ -70,14 +79,25 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     loadData();
   }, [loadData]);
 
+  const updateSettings = async (newSettings: Partial<AppSettings>) => {
+    try {
+      const updatedSettingsData = { ...settings, ...newSettings };
+      const result = await updateSettingsAction(updatedSettingsData);
+      setSettings(result);
+      toast({ title: "Settings Updated", description: "Your settings have been saved." });
+    } catch (error) {
+      console.error("Failed to update settings:", error);
+      toast({ variant: "destructive", title: "Error", description: "Could not update settings." });
+    }
+  };
 
-  const addExpense = async (expenseData: Omit<Expense, 'id'>) => {
+  const addExpense = async (expenseData: Omit<Expense, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode }) => {
     try {
       const newExpense = await addExpenseAction(expenseData);
       setExpenses(prev => [newExpense, ...prev]);
     } catch (error) {
       console.error("Failed to add expense:", error);
-      toast({ variant: "destructive", title: "Error", description: "Could not add expense." });
+      toast({ variant: "destructive", title: "Error", description: "Could not add expense. Check API key or network." });
     }
   };
 
@@ -87,7 +107,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       setExpenses(prev => prev.map(exp => exp.id === updatedExpense.id ? updatedExpense : exp));
     } catch (error) {
       console.error("Failed to update expense:", error);
-      toast({ variant: "destructive", title: "Error", description: "Could not update expense." });
+      toast({ variant: "destructive", title: "Error", description: "Could not update expense. Check API key or network." });
     }
   };
 
@@ -144,7 +164,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   
   const addCategory = async (categoryData: Omit<Category, 'id'>) => {
     try {
-      const newCategory = await addCategoryAction(categoryData);
+      // Ensure 'icon' is always DollarSign for new categories as per previous requirement
+      const newCategory = await addCategoryAction({ ...categoryData, icon: "DollarSign" });
       setCategories(prev => [newCategory, ...prev]);
     } catch (error) {
       console.error("Failed to add category:", error);
@@ -168,7 +189,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       if (success) {
         setCategories(prev => prev.filter(cat => cat.id !== id));
       } else {
-        toast({ variant: "destructive", title: "Deletion Failed", description: "Category could not be deleted." });
+        // This part of the toast might be redundant if deleteCategoryAction itself doesn't throw for "in use"
+        toast({ variant: "destructive", title: "Deletion Failed", description: "Category could not be deleted. It might be in use." });
       }
     } catch (error) {
       console.error("Failed to delete category:", error);
@@ -183,11 +205,24 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error("Failed to reset categories:", error);
       toast({ variant: "destructive", title: "Error", description: "Could not reset categories." });
-      throw error; // Re-throw to be caught by caller if needed for specific error handling
+      throw error; 
     }
   };
   
   const getCategoryById = (id: string) => categories.find(c => c.id === id);
+
+  const getAmountInDefaultCurrency = (item: Expense | Subscription): number => {
+    if (isLoading || !settings.defaultCurrency) return 0;
+
+    if ('amounts' in item && item.amounts) { // It's an Expense
+      return item.amounts[settings.defaultCurrency] || item.originalAmount; // Fallback to original if somehow not converted
+    } else if ('amount' in item) { // It's a Subscription
+      // Subscriptions are assumed to be in the default currency already
+      return item.amount;
+    }
+    return 0;
+  };
+
 
   return (
     <DataContext.Provider value={{
@@ -195,7 +230,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       subscriptions, setSubscriptions, addSubscription, updateSubscription, deleteSubscription,
       categories, setCategories, addCategory, updateCategory, deleteCategory, resetCategories,
       getCategoryById,
-      isLoading
+      settings, updateSettings,
+      isLoading,
+      getAmountInDefaultCurrency,
     }}>
       {children}
     </DataContext.Provider>
@@ -209,5 +246,3 @@ export const useData = (): DataContextProps => {
   }
   return context;
 };
-
-    
