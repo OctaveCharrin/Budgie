@@ -52,16 +52,14 @@ export function SettingsTab() {
   const [isResetCategoriesAlertOpen, setIsResetCategoriesAlertOpen] = useState(false);
   const [resetCategoriesConfirmationInput, setResetCategoriesConfirmationInput] = useState("");
 
-  const [apiKeyInput, setApiKeyInput] = useState(settings?.apiKey || "");
+  const [apiKeyInput, setApiKeyInput] = useState(""); // Initialize as empty
   const [showApiKey, setShowApiKey] = useState(false);
   
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (settings?.apiKey) {
-      setApiKeyInput(settings.apiKey);
-    }
-  }, [settings?.apiKey]);
+  // No useEffect to set apiKeyInput from settings.apiKey directly
+  // This ensures the input field starts empty for security reasons.
+  // The display of the current key is handled by getMaskedApiKeyDisplay.
 
   const handleEditCategory = (category: Category) => {
     setEditingCategory(category);
@@ -128,13 +126,15 @@ export function SettingsTab() {
     try {
       await updateSettings({ ...settings, apiKey: apiKeyInput.trim() });
       toast({ title: "API Key Saved", description: "ExchangeRate-API key has been updated." });
+      setApiKeyInput(""); // Clear the input field after saving
+      setShowApiKey(false); // Optionally hide the key again
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Could not save API key." });
     }
   };
 
   const getMaskedApiKeyDisplay = () => {
-    if (!settings?.apiKey || settings.apiKey.length === 0) {
+    if (isDataLoading || !settings || !settings.apiKey || settings.apiKey.length === 0) {
       return "Not Set";
     }
     if (settings.apiKey.length <= 7) {
