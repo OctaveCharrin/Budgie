@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,8 +26,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { IconDisplay } from "@/components/icon-display";
 
-const lucideIconNames = Object.keys(LucideIcons).filter(key => key !== 'createLucideIcon' && key !== 'icons' && typeof (LucideIcons as any)[key] === 'object');
+const lucideIconNames = Object.keys(LucideIcons)
+  .filter(
+    (key) =>
+      key !== 'default' && // Often 'default' is the module itself or a specific export
+      key !== 'createLucideIcon' &&
+      key !== 'icons' && // This is the object with SVG data, not components
+      typeof (LucideIcons as any)[key] === 'function' && // Icon components are functions
+      /^[A-Z]/.test(key) // Conventionally, React components are PascalCase
+  )
+  .sort();
 
 
 const formSchema = z.object({
@@ -96,7 +107,7 @@ export function CategoryForm({ category, onSave }: CategoryFormProps) {
                   {lucideIconNames.map((iconName) => (
                     <SelectItem key={iconName} value={iconName}>
                       <div className="flex items-center">
-                        <LucideIcons.Icon name={iconName} className="mr-2 h-4 w-4" />
+                        <IconDisplay name={iconName} className="mr-2 h-4 w-4" />
                         {iconName}
                       </div>
                     </SelectItem>
