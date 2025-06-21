@@ -1,8 +1,10 @@
 # Budgie - Expense Tracker
 
-Budgie is a modern, intuitive, and privacy-focused expense tracking application built with Next.js. It allows users to effortlessly record daily expenses, manage recurring subscriptions, and visualize their spending habits through insightful reports. All data is stored locally on the server where the application is run, ensuring users have full control over their financial information without needing to create an account.
+This web application was developped using [Firebase Studio](https://firebase.studio/).
 
-![Budgie Dashboard](https://placehold.co/800x450.png)
+Budgie is a modern, intuitive, and privacy-focused expense tracking application built with **Next.js**. It allows users to effortlessly record daily expenses, manage recurring subscriptions, and visualize their spending habits through insightful reports. All data is stored locally on the server where the application is run, ensuring users have full control over their financial information without needing to create an account.
+
+![Budgie Dashboard](assets/dashboard.png)
 
 ## Core Features
 
@@ -37,8 +39,8 @@ You can run Budgie locally using either `npm` for development or Docker for a po
 
 1.  **Clone the repository:**
     ```bash
-    git clone <repository-url>
-    cd <repository-directory>
+    git clone git@github.com:OctaveCharrin/Budgie.git
+    cd Budgie
     ```
 
 2.  **Install dependencies:**
@@ -87,7 +89,7 @@ For accurate, live currency conversions, the app uses the [ExchangeRate-API](htt
 -   **Subscriptions**: Manage your recurring monthly subscriptions.
 -   **Reports**: Analyze your spending habits with interactive charts for weekly, monthly, or yearly periods.
 -   **Settings**:
-    -   Manage your expense categories.
     -   Set your default display currency.
     -   Add or update your ExchangeRate-API key.
+    -   Manage your expense categories.
     -   Permanently delete your data if you wish to start fresh.
