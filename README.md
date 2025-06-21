@@ -27,10 +27,13 @@ TrackRight is a modern, intuitive, and privacy-focused expense tracking applicat
 -   **Charts**: [Recharts](https://recharts.org/)
 -   **Forms**: [React Hook Form](https://react-hook-form.com/) & [Zod](https://zod.dev/)
 -   **Database**: [SQLite](https://www.sqlite.org/index.html)
+-   **Containerization**: [Docker](https://www.docker.com/)
 
-## Installation and Setup
+## Running Locally
 
-To run TrackRight locally, follow these steps:
+You can run TrackRight locally using either `npm` for development or Docker for a portable, production-like environment.
+
+### Using `npm` (for development)
 
 1.  **Clone the repository:**
     ```bash
@@ -39,7 +42,6 @@ To run TrackRight locally, follow these steps:
     ```
 
 2.  **Install dependencies:**
-    TrackRight uses `npm` for package management.
     ```bash
     npm install
     ```
@@ -50,12 +52,33 @@ To run TrackRight locally, follow these steps:
     ```
     The application will start, and you can access it at `http://localhost:9002` in your web browser.
 
-4.  **(Optional) Configure Exchange Rate API Key:**
-    For accurate, live currency conversions, the app uses the [ExchangeRate-API](https://www.exchangerate-api.com/). Without a key, the app will use placeholder conversion rates.
+### Using Docker (for portability and production)
 
-    -   Sign up for a free API key on their website.
-    -   Navigate to the **Settings** tab in the TrackRight application.
-    -   Enter your API key in the "ExchangeRate-API Key" section and click "Save API Key". The key is stored securely on the server.
+This method requires [Docker](https://www.docker.com/get-started) to be installed on your machine.
+
+1.  **Build the Docker Image:**
+    In the root directory of the project, run the build command. This will create a container image named `trackright-app`.
+    ```bash
+    docker build -t trackright-app .
+    ```
+
+2.  **Run the Docker Container:**
+    Once the image is built, run the container. The `-v` flag is crucial as it maps the local `./data` directory to the container's `/app/data` directory, ensuring your database and settings are persisted even if the container is stopped or removed.
+    ```bash
+    docker run -p 9002:9002 -v "$(pwd)/data:/app/data" --name trackright-container trackright-app
+    ```
+
+3.  **Access the App:**
+    The application will be available at `http://localhost:9002`.
+
+## Configuration
+
+### Exchange Rate API Key
+For accurate, live currency conversions, the app uses the [ExchangeRate-API](https://www.exchangerate-api.com/). Without a key, the app will use placeholder conversion rates.
+
+-   Sign up for a free API key on their website.
+-   Navigate to the **Settings** tab in the TrackRight application.
+-   Enter your API key in the "ExchangeRate-API Key" section and click "Save API Key". The key is stored securely on the server.
 
 ## Usage
 
