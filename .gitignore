@@ -25,3 +25,4 @@ yarn-debug.log*
 # Environment-specific files
 /.idx/
 .modified
+/docs

@@ -1,8 +1,8 @@
-# TrackRight - Expense Tracker
+# Budgie - Expense Tracker
 
-TrackRight is a modern, intuitive, and privacy-focused expense tracking application built with Next.js. It allows users to effortlessly record daily expenses, manage recurring subscriptions, and visualize their spending habits through insightful reports. All data is stored locally on the server where the application is run, ensuring users have full control over their financial information without needing to create an account.
+Budgie is a modern, intuitive, and privacy-focused expense tracking application built with Next.js. It allows users to effortlessly record daily expenses, manage recurring subscriptions, and visualize their spending habits through insightful reports. All data is stored locally on the server where the application is run, ensuring users have full control over their financial information without needing to create an account.
 
-![TrackRight Dashboard](https://placehold.co/800x450.png)
+![Budgie Dashboard](https://placehold.co/800x450.png)
 
 ## Core Features
 
@@ -31,7 +31,7 @@ TrackRight is a modern, intuitive, and privacy-focused expense tracking applicat
 
 ## Running Locally
 
-You can run TrackRight locally using either `npm` for development or Docker for a portable, production-like environment.
+You can run Budgie locally using either `npm` for development or Docker for a portable, production-like environment.
 
 ### Using `npm` (for development)
 
@@ -57,15 +57,15 @@ You can run TrackRight locally using either `npm` for development or Docker for 
 This method requires [Docker](https://www.docker.com/get-started) to be installed on your machine.
 
 1.  **Build the Docker Image:**
-    In the root directory of the project, run the build command. This will create a container image named `trackright-app`.
+    In the root directory of the project, run the build command. This will create a container image named `budgie-app`.
     ```bash
-    docker build -t trackright-app .
+    docker build -t budgie-app .
     ```
 
 2.  **Run the Docker Container:**
     Once the image is built, run the container. The `-v` flag is crucial as it maps the local `./data` directory to the container's `/app/data` directory, ensuring your database and settings are persisted even if the container is stopped or removed.
     ```bash
-    docker run -p 9002:9002 -v "$(pwd)/data:/app/data" --name trackright-container trackright-app
+    docker run -p 9002:9002 -v "$(pwd)/data:/app/data" --name budgie-container budgie-app
     ```
 
 3.  **Access the App:**
@@ -77,7 +77,7 @@ This method requires [Docker](https://www.docker.com/get-started) to be installe
 For accurate, live currency conversions, the app uses the [ExchangeRate-API](https://www.exchangerate-api.com/). Without a key, the app will use placeholder conversion rates.
 
 -   Sign up for a free API key on their website.
--   Navigate to the **Settings** tab in the TrackRight application.
+-   Navigate to the **Settings** tab in the Budgie application.
 -   Enter your API key in the "ExchangeRate-API Key" section and click "Save API Key". The key is stored securely on the server.
 
 ## Usage
