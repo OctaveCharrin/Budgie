@@ -1,6 +1,6 @@
 
 'use server';
-import type { CurrencyCode } from '@/lib/types';
+import type { CurrencyCode, AppSettings } from '@/lib/types';
 import { SUPPORTED_CURRENCIES } from '@/lib/constants';
 
 const API_BASE_URL = 'https://v6.exchangerate-api.com/v6';
@@ -9,7 +9,7 @@ interface ExchangeRateApiResponse {
   result: string;
   conversion_rates: Record<string, number>;
   base_code: string;
-  error?: { type: string; 'error-type'?: string };
+  "error-type"?: string; // The API returns error-type at the top level for some errors
 }
 
 interface CachedRates {
@@ -20,6 +20,11 @@ interface CachedRates {
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
 const exchangeRateCache = new Map<CurrencyCode, CachedRates>();
 
+/**
+ * Retrieves exchange rates from the cache if they are not stale.
+ * @param baseCurrency - The base currency for the rates.
+ * @returns The cached rates or null if not found or stale.
+ */
 function getCachedRates(baseCurrency: CurrencyCode): Record<CurrencyCode, number> | null {
   const cachedEntry = exchangeRateCache.get(baseCurrency);
   if (cachedEntry && (Date.now() - cachedEntry.timestamp < CACHE_TTL)) {
@@ -29,6 +34,11 @@ function getCachedRates(baseCurrency: CurrencyCode): Record<CurrencyCode, number
   return null;
 }
 
+/**
+ * Stores fetched exchange rates in the cache.
+ * @param baseCurrency - The base currency for the rates.
+ * @param rates - The exchange rates to cache.
+ */
 function setCachedRates(baseCurrency: CurrencyCode, rates: Record<CurrencyCode, number>): void {
   exchangeRateCache.set(baseCurrency, {
     timestamp: Date.now(),
@@ -36,20 +46,27 @@ function setCachedRates(baseCurrency: CurrencyCode, rates: Record<CurrencyCode, 
   });
 }
 
+/**
+ * Fetches exchange rates for a given base currency.
+ * It uses a cache to avoid redundant API calls. If an API key is not provided,
+ * it returns hardcoded fallback rates.
+ * @param baseCurrency - The base currency to fetch rates for.
+ * @param apiKeyFromSettings - The API key from application settings.
+ * @returns A promise that resolves to a record of currency rates, or null on failure.
+ * @throws Will throw an error if the API call fails or the API key is invalid.
+ */
 export async function fetchExchangeRates(
   baseCurrency: CurrencyCode,
   apiKeyFromSettings?: string
-): Promise<Record<CurrencyCode, number> | null> {
+): Promise<Record<CurrencyCode, number>> {
   const cached = getCachedRates(baseCurrency);
   if (cached) {
     console.log(`Using cached exchange rates for ${baseCurrency}`);
     return cached;
   }
 
-  const resolvedApiKey = apiKeyFromSettings; // Rely solely on the key from settings
-
-  if (!resolvedApiKey || resolvedApiKey.trim() === '' || resolvedApiKey === 'YOUR_PLACEHOLDER_API_KEY') {
-    console.warn("ExchangeRate-API key is not configured in settings or is a placeholder. Using fallback rates.");
+  if (!apiKeyFromSettings) {
+    console.warn("ExchangeRate-API key is not configured. Using fallback rates.");
     const fallbackRates = {} as Record<CurrencyCode, number>;
     SUPPORTED_CURRENCIES.forEach(code => fallbackRates[code] = 1); 
     fallbackRates[baseCurrency] = 1; 
@@ -60,27 +77,24 @@ export async function fetchExchangeRates(
         fallbackRates['USD'] = 1.08; fallbackRates['JPY'] = 169; fallbackRates['CHF'] = 0.97;
     }
     
-    setCachedRates(baseCurrency, fallbackRates);
+    // Do not cache fallback rates as they are static
     return fallbackRates;
   }
 
-  const url = `${API_BASE_URL}/${resolvedApiKey}/latest/${baseCurrency}`;
-  console.log(`Fetching live exchange rates for ${baseCurrency} using API key from settings.`);
+  const url = `${API_BASE_URL}/${apiKeyFromSettings}/latest/${baseCurrency}`;
+  console.log(`Fetching live exchange rates for ${baseCurrency}.`);
 
   try {
     const response = await fetch(url, { next: { revalidate: CACHE_TTL / 1000 } });
-    if (!response.ok) {
-      const errorBody = await response.json() as ExchangeRateApiResponse; 
-      const errorType = errorBody?.error?.['error-type'] || errorBody?.error?.type || `HTTP ${response.status}`;
-      console.error(`API Error (${response.status}) fetching rates for ${baseCurrency}: ${errorType}`);
-      throw new Error(`Failed to fetch exchange rates: ${errorType}`);
-    }
     const data: ExchangeRateApiResponse = await response.json();
 
-    if (data.result === 'error' || data.error) {
-        const errorType = data.error?.['error-type'] || data.error?.type || 'Unknown API error';
-        console.error(`ExchangeRate-API returned an error for ${baseCurrency}: ${errorType}`);
-        throw new Error(`Failed to fetch exchange rates: ${errorType}`);
+    if (!response.ok || data.result === 'error') {
+      const errorType = data["error-type"] || `HTTP error! status: ${response.status}`;
+      console.error(`API Error fetching rates for ${baseCurrency}: ${errorType}`);
+      const isApiKeyInvalid = ['invalid-key', 'inactive-account'].includes(errorType);
+      const error = new Error(`Failed to fetch exchange rates: ${errorType}`);
+      (error as any).isApiKeyInvalid = isApiKeyInvalid;
+      throw error;
     }
     
     const rates: Record<CurrencyCode, number> = {} as Record<CurrencyCode, number>;
@@ -100,25 +114,28 @@ export async function fetchExchangeRates(
   }
 }
 
+/**
+ * Converts an amount from a base currency to all supported currencies.
+ * @param amount - The amount to convert.
+ * @param baseCurrency - The currency of the original amount.
+ * @param apiKeyFromSettings - The API key from application settings.
+ * @returns A promise that resolves to a record of the converted amounts in all supported currencies.
+ */
 export async function convertAmountToAllCurrencies(
   amount: number,
   baseCurrency: CurrencyCode,
   apiKeyFromSettings?: string
 ): Promise<Record<CurrencyCode, number>> {
-  const rates = await fetchExchangeRates(baseCurrency, apiKeyFromSettings);
-  if (!rates) {
+  try {
+    const rates = await fetchExchangeRates(baseCurrency, apiKeyFromSettings);
+    const convertedAmounts: Record<CurrencyCode, number> = {} as Record<CurrencyCode, number>;
+    for (const targetCurrency of SUPPORTED_CURRENCIES) {
+      convertedAmounts[targetCurrency] = amount * (rates[targetCurrency] || 1); 
+    }
+    return convertedAmounts;
+  } catch (error) {
     console.error(`Failed to get rates for ${baseCurrency}, cannot convert amount ${amount}.`);
-    const fallbackAmounts = {} as Record<CurrencyCode, number>;
-    SUPPORTED_CURRENCIES.forEach(code => {
-        fallbackAmounts[code] = (code === baseCurrency) ? amount : amount; 
-    });
-    console.warn(`Returning potentially inaccurate conversions for ${baseCurrency} due to rate fetch failure.`);
-    return fallbackAmounts;
+    // Re-throw the original error to be handled by the caller (e.g., DataContext)
+    throw error;
   }
-
-  const convertedAmounts: Record<CurrencyCode, number> = {} as Record<CurrencyCode, number>;
-  for (const targetCurrency of SUPPORTED_CURRENCIES) {
-    convertedAmounts[targetCurrency] = amount * (rates[targetCurrency] || 1); 
-  }
-  return convertedAmounts;
 }

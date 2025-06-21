@@ -2,10 +2,13 @@
 'use server';
 import fs from 'fs/promises';
 import path from 'path';
-import { DEFAULT_CATEGORIES, DATA_FILE_PATHS } from '@/lib/constants'; // Import DEFAULT_CATEGORIES
+import { DEFAULT_CATEGORIES, DATA_FILE_PATHS } from '@/lib/constants';
 
 const dataDir = path.join(process.cwd(), 'data');
 
+/**
+ * Ensures the data directory exists, creating it if necessary.
+ */
 async function ensureDirExists() {
   try {
     await fs.access(dataDir);
@@ -14,6 +17,13 @@ async function ensureDirExists() {
   }
 }
 
+/**
+ * Reads and parses a JSON file from the data directory.
+ * If the file does not exist or is invalid, it writes the default value to the file and returns it.
+ * @param filename - The name of the file to read (e.g., 'settings.json').
+ * @param defaultValue - The default value to return and write if the file is missing or invalid.
+ * @returns A promise that resolves to the parsed data or the default value.
+ */
 export async function readData<T>(filename: string, defaultValue: T): Promise<T> {
   await ensureDirExists();
   const filePath = path.join(dataDir, filename);
@@ -37,6 +47,12 @@ export async function readData<T>(filename: string, defaultValue: T): Promise<T>
   }
 }
 
+/**
+ * Writes data to a JSON file in the data directory.
+ * @param filename - The name of the file to write to.
+ * @param data - The data to serialize and write.
+ * @throws Will throw an error if the write operation fails.
+ */
 export async function writeData<T>(filename: string, data: T): Promise<void> {
   await ensureDirExists();
   const filePath = path.join(dataDir, filename);

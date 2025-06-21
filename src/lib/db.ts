@@ -12,6 +12,9 @@ const dbFilePath = path.join(dataDir, 'budgie.db');
 let db: Database | null = null;
 let initializationPromise: Promise<void> | null = null;
 
+/**
+ * Ensures the data directory exists.
+ */
 async function ensureDataDirExists() {
   try {
     await fs.access(dataDir);
@@ -22,6 +25,9 @@ async function ensureDataDirExists() {
 
 const amountColumns = SUPPORTED_CURRENCIES.map(c => `amount_${c.toLowerCase()} REAL`).join(', ');
 
+/**
+ * Performs the actual database initialization, including table creation and schema migration.
+ */
 async function doInitialize() {
     const dbInstance = await open({
         filename: dbFilePath,
@@ -29,6 +35,7 @@ async function doInitialize() {
     });
     await dbInstance.exec('PRAGMA foreign_keys = ON;');
 
+    // Create expenses table if it doesn't exist
     await dbInstance.exec(`
         CREATE TABLE IF NOT EXISTS expenses (
         id TEXT PRIMARY KEY,
@@ -42,6 +49,7 @@ async function doInitialize() {
         );
     `);
 
+    // Schema migration: Add day_of_week if it doesn't exist
     const expensesTableInfo = await dbInstance.all<{name: string, type: string}>('PRAGMA table_info(expenses);');
     const dayOfWeekColumnExists = expensesTableInfo.some(col => col.name === 'day_of_week');
 
@@ -50,6 +58,7 @@ async function doInitialize() {
         await dbInstance.exec('ALTER TABLE expenses ADD COLUMN day_of_week INTEGER NOT NULL DEFAULT 0;');
     }
 
+    // Create subscriptions table if it doesn't exist
     await dbInstance.exec(`
         CREATE TABLE IF NOT EXISTS subscriptions (
         id TEXT PRIMARY KEY,
@@ -67,6 +76,10 @@ async function doInitialize() {
     db = dbInstance;
 }
 
+/**
+ * Initializes the database connection and schema. Uses a singleton pattern to ensure
+ * initialization only runs once.
+ */
 export async function initializeDb() {
   if (!initializationPromise) {
     initializationPromise = ensureDataDirExists().then(doInitialize);
@@ -74,7 +87,12 @@ export async function initializeDb() {
   await initializationPromise;
 }
 
-
+/**
+ * Opens and returns the database connection.
+ * It ensures the DB is initialized before returning the connection instance.
+ * @returns A promise that resolves to the database instance.
+ * @throws Will throw an error if the database is not initialized correctly.
+ */
 export async function openDb(): Promise<Database> {
   await initializeDb();
   if (!db) {
