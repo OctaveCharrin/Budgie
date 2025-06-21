@@ -5,7 +5,7 @@ import { readData, writeData } from '@/lib/file-service';
 import { DATA_FILE_PATHS, DEFAULT_CATEGORIES, DEFAULT_SETTINGS, SUPPORTED_CURRENCIES } from '@/lib/constants';
 import type { Expense, Subscription, Category, AppSettings, CurrencyCode } from '@/lib/types';
 import { convertAmountToAllCurrencies } from '@/services/exchange-rate-service';
-import { openDb, initializeDb } from '@/lib/db';
+import { openDb } from '@/lib/db';
 import { getDay as getDayFns } from 'date-fns'; // For day of week calculation
 import { z } from 'zod';
 
@@ -40,15 +40,11 @@ function mapDbRowToAmounts(row: any): Record<CurrencyCode, number> {
 const amountDbColumns = SUPPORTED_CURRENCIES.map(c => `amount_${c.toLowerCase()}`).join(', ');
 const amountDbValuePlaceholders = SUPPORTED_CURRENCIES.map(c => `$amount_${c.toLowerCase()}`).join(', ');
 
-async function getDb() {
-  await initializeDb(); 
-  return openDb();
-}
-
 // --- Zod Schemas for Server-Side Validation ---
 const SettingsSchema = z.object({
   defaultCurrency: z.enum(SUPPORTED_CURRENCIES),
   apiKey: z.string().optional(),
+  apiKeyStatus: z.enum(['valid', 'invalid', 'unchecked', 'missing']).optional(),
 });
 
 const CategoryBaseSchema = z.object({
@@ -158,7 +154,7 @@ export async function deleteCategoryAction(id: string): Promise<{ success: boole
     return { success: false, message: "Default categories cannot be deleted." };
   }
 
-  const db = await getDb();
+  const db = await openDb();
   const expenseCount = await db.get('SELECT COUNT(*) as count FROM expenses WHERE categoryId = ?', id);
   if (expenseCount && expenseCount.count > 0) {
     return { success: false, message: `Category "${categoryToDelete.name}" is in use by expenses and cannot be deleted.` };
@@ -182,7 +178,7 @@ export async function resetCategoriesAction(): Promise<Category[]> {
 
 // Expense Actions
 export async function getExpensesAction(): Promise<Expense[]> {
-  const db = await getDb();
+  const db = await openDb();
   const rows = await db.all(`SELECT id, date, categoryId, originalAmount, originalCurrency, day_of_week, ${amountDbColumns}, description FROM expenses ORDER BY date DESC`);
   return rows.map(row => ({
     id: row.id,
@@ -200,7 +196,7 @@ export async function addExpenseAction(
   expenseData: Omit<Expense, 'id' | 'amounts' | 'dayOfWeek'> & { originalAmount: number; originalCurrency: CurrencyCode }
 ): Promise<Expense> {
   const parsedData = AddExpenseInputSchema.parse(expenseData);
-  const db = await getDb();
+  const db = await openDb();
   const currentSettings = await getSettingsAction();
   const amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency, currentSettings.apiKey);
   const newExpenseId = generateId();
@@ -227,7 +223,7 @@ export async function addExpenseAction(
 
 export async function updateExpenseAction(updatedExpenseData: Expense): Promise<Expense> {
   const parsedData = UpdateExpenseInputSchema.parse(updatedExpenseData);
-  const db = await getDb();
+  const db = await openDb();
   const currentSettings = await getSettingsAction();
   const existingExpenseRow = await db.get('SELECT originalAmount, originalCurrency FROM expenses WHERE id = ?', parsedData.id);
 
@@ -265,20 +261,20 @@ export async function updateExpenseAction(updatedExpenseData: Expense): Promise<
 
 export async function deleteExpenseAction(id: string): Promise<{ success: boolean }> {
   z.string().uuid("Invalid expense ID.").parse(id);
-  const db = await getDb();
+  const db = await openDb();
   await db.run('DELETE FROM expenses WHERE id = ?', id);
   return { success: true };
 }
 
 export async function deleteAllExpensesAction(): Promise<{ success: boolean }> {
-  const db = await getDb();
+  const db = await openDb();
   await db.run('DELETE FROM expenses');
   return { success: true };
 }
 
 // Subscription Actions
 export async function getSubscriptionsAction(): Promise<Subscription[]> {
-  const db = await getDb();
+  const db = await openDb();
   const rows = await db.all(`SELECT id, name, categoryId, originalAmount, originalCurrency, ${amountDbColumns}, startDate, endDate, description FROM subscriptions ORDER BY name ASC`);
   return rows.map(row => ({
     id: row.id,
@@ -301,7 +297,7 @@ export async function addSubscriptionAction(
     console.error("addSubscriptionAction: categoryId is missing or invalid.", parsedData);
     throw new Error('Subscription categoryId is missing or invalid.');
   }
-  const db = await getDb();
+  const db = await openDb();
   const currentSettings = await getSettingsAction();
   const amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency, currentSettings.apiKey);
   const newSubscriptionId = generateId();
@@ -332,7 +328,7 @@ export async function updateSubscriptionAction(updatedSubscriptionData: Subscrip
     console.error("updateSubscriptionAction: categoryId is missing or invalid.", parsedData);
     throw new Error('Subscription categoryId is missing or invalid for update.');
   }
-  const db = await getDb();
+  const db = await openDb();
   const currentSettings = await getSettingsAction();
   const existingSubRow = await db.get('SELECT originalAmount, originalCurrency FROM subscriptions WHERE id = ?', parsedData.id);
   
@@ -370,14 +366,13 @@ export async function updateSubscriptionAction(updatedSubscriptionData: Subscrip
 
 export async function deleteSubscriptionAction(id: string): Promise<{ success: boolean }> {
   z.string().uuid("Invalid subscription ID.").parse(id);
-  const db = await getDb();
+  const db = await openDb();
   await db.run('DELETE FROM subscriptions WHERE id = ?', id);
   return { success: true };
 }
 
 export async function deleteAllSubscriptionsAction(): Promise<{ success: boolean }> {
-  const db = await getDb();
+  const db = await openDb();
   await db.run('DELETE FROM subscriptions');
   return { success: true };
 }
-    
