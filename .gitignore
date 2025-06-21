@@ -1,39 +1,27 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Dependencies
+# dependencies
 /node_modules
-/.pnp
-.pnp.js
 
-# Next.js build output
+# build cache
 /.next/
 /out/
 
-# Production build
-/build
+# local data
+/data/
 
-# Miscellaneous
+# misc
 .DS_Store
 *.pem
 
-# Log files
+# debug
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
 
-# Local .env files
+# local env files
 .env*.local
 .env
 
-# IDE-specific
-.vscode/
-.idea/
-
-# Project IDX specific
-.idx/
-
-# User data
-# This directory contains the SQLite database and settings files.
-# It should not be committed to the repository.
-/data/
+# Environment-specific files
+/.idx/
+.modified
