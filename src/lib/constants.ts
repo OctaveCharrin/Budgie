@@ -18,12 +18,14 @@ export const DEFAULT_CATEGORIES: Category[] = [
 
 export const DATA_FILE_PATHS = {
   settings: 'settings.json',
-  categories: 'categories.json', // Restored for JSON-based category management
+  categories: 'categories.json',
+  rates: 'rates.json',
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
   defaultCurrency: 'USD',
-  apiKey: '', // Initialize apiKey as empty
+  apiKey: '',
+  lastRatesSync: null,
 };
 
 // Re-export SUPPORTED_CURRENCIES for easier import elsewhere

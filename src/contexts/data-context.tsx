@@ -9,7 +9,7 @@ import {
   getCategoriesAction, addCategoryAction, updateCategoryAction, deleteCategoryAction, resetCategoriesAction,
   getExpensesAction, addExpenseAction, updateExpenseAction, deleteExpenseAction, deleteAllExpensesAction,
   getSubscriptionsAction, addSubscriptionAction, updateSubscriptionAction, deleteSubscriptionAction, deleteAllSubscriptionsAction,
-  getSettingsAction, updateSettingsAction
+  getSettingsAction, updateSettingsAction, forceUpdateRatesAction
 } from '@/actions/data-actions';
 import { useToast } from "@/hooks/use-toast";
 
@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 interface DataContextProps {
   expenses: Expense[];
   setExpenses: (expenses: Expense[] | ((val: Expense[]) => Expense[])) => void;
-  addExpense: (expenseData: Omit<Expense, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode }) => Promise<void>;
+  addExpense: (expenseData: Omit<Expense, 'id' | 'amounts' | 'dayOfWeek'> & { originalAmount: number; originalCurrency: CurrencyCode }) => Promise<void>;
   updateExpense: (expense: Expense) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
   deleteAllExpenses: () => Promise<void>;
@@ -38,6 +38,7 @@ interface DataContextProps {
   updateSettings: (newSettings: Partial<AppSettings>) => Promise<void>;
   isLoading: boolean;
   getAmountInDefaultCurrency: (item: Expense | Subscription) => number;
+  forceUpdateRates: () => Promise<void>;
 }
 
 const DataContext = createContext<DataContextProps | undefined>(undefined);
@@ -55,26 +56,59 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-
-  /**
-   * Loads all necessary data from server actions on initial component mount.
-   */
-  const loadData = useCallback(async () => {
+  
+  const loadData = useCallback(async (options?: { forceRateUpdate?: boolean }) => {
     setIsLoading(true);
     try {
-      const [fetchedCategories, fetchedExpenses, fetchedSubscriptions, fetchedSettings] = await Promise.all([
+      let fetchedSettings = await getSettingsAction();
+      
+      // Automatic rate update logic
+      const now = new Date();
+      const lastSync = fetchedSettings.lastRatesSync ? new Date(fetchedSettings.lastRatesSync) : null;
+      let needsUpdate = options?.forceRateUpdate || false;
+
+      if (!needsUpdate) {
+        if (!lastSync) {
+          needsUpdate = true; // First time run
+          console.log("No previous rate sync found. Triggering update.");
+        } else {
+          const midnight = new Date(now);
+          midnight.setHours(0, 0, 0, 0);
+          if (lastSync < midnight) { // Last sync was before today's midnight
+            needsUpdate = true;
+            console.log("Rates are stale (last synced yesterday or earlier). Triggering update.");
+          }
+        }
+      }
+
+      if (needsUpdate && fetchedSettings.apiKey) {
+        toast({ title: "Updating Exchange Rates...", description: "Fetching the latest conversion rates in the background." });
+        const updateResult = await forceUpdateRatesAction();
+        if (updateResult.success) {
+          console.log("Startup rates update successful.");
+          toast({ title: "Rates Updated", description: "Successfully fetched latest exchange rates." });
+          // Re-fetch settings to get the new sync time
+          fetchedSettings = await getSettingsAction();
+        } else {
+          console.error("Startup rates update failed:", updateResult.message);
+          toast({ variant: "destructive", title: "Rates Update Failed", description: updateResult.message || "Could not fetch latest exchange rates on startup." });
+        }
+      }
+      
+      const [fetchedCategories, fetchedExpenses, fetchedSubscriptions] = await Promise.all([
         getCategoriesAction(),
         getExpensesAction(),
         getSubscriptionsAction(),
-        getSettingsAction()
       ]);
+
       setCategories(fetchedCategories);
       setExpenses(fetchedExpenses);
       setSubscriptions(fetchedSubscriptions);
-      setSettings(fetchedSettings || DEFAULT_SETTINGS);
+      setSettings(fetchedSettings);
+
     } catch (error) {
       console.error("Failed to load data:", error);
-      toast({ variant: "destructive", title: "Error Loading Data", description: "Could not load data from the server. Exchange rates or database might be an issue." });
+      toast({ variant: "destructive", title: "Error Loading Data", description: "Could not load initial application data." });
       setCategories(DEFAULT_CATEGORIES);
       setExpenses([]);
       setSubscriptions([]);
@@ -82,11 +116,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast]); // `toast` is stable, so this is fine.
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+
+  const forceUpdateRatesContext = async () => {
+    await loadData({ forceRateUpdate: true });
+  };
+
 
   /**
    * Updates application settings.
@@ -107,7 +147,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
    * Adds a new expense, handling currency conversion and updating state.
    * @param expenseData - The new expense data.
    */
-  const addExpenseContext = async (expenseData: Omit<Expense, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode }) => {
+  const addExpenseContext = async (expenseData: Omit<Expense, 'id' | 'amounts' | 'dayOfWeek'> & { originalAmount: number; originalCurrency: CurrencyCode }) => {
     try {
       const newExpense = await addExpenseAction(expenseData);
       setExpenses(prev => [newExpense, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
@@ -332,6 +372,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       updateSettings: updateSettingsContext,
       isLoading,
       getAmountInDefaultCurrency: getAmountInDefaultCurrencyContext,
+      forceUpdateRates: forceUpdateRatesContext,
     }}>
       {children}
     </DataContext.Provider>

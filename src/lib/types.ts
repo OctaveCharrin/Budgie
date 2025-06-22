@@ -34,7 +34,13 @@ export interface Subscription {
 
 export interface AppSettings {
   defaultCurrency: CurrencyCode;
-  apiKey?: string; // Optional API key for exchange rate service
+  apiKey?: string;
+  lastRatesSync?: string | null; // For display purposes, dynamically populated
+}
+
+export interface RatesFile {
+  lastFetched: string | null;
+  rates: Partial<Record<CurrencyCode, Partial<Record<CurrencyCode, number>>>>;
 }
 
 export type ReportPeriod = 'weekly' | 'monthly' | 'yearly';

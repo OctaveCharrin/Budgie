@@ -4,7 +4,7 @@
 import { readData, writeData } from '@/lib/file-service';
 import { DATA_FILE_PATHS, DEFAULT_CATEGORIES, DEFAULT_SETTINGS, SUPPORTED_CURRENCIES } from '@/lib/constants';
 import type { Expense, Subscription, Category, AppSettings, CurrencyCode } from '@/lib/types';
-import { convertAmountToAllCurrencies } from '@/services/exchange-rate-service';
+import { convertAmountToAllCurrencies, getRatesFile, updateAllExchangeRates } from '@/services/exchange-rate-service';
 import { openDb } from '@/lib/db';
 import { getDay as getDayFns } from 'date-fns';
 import { z } from 'zod';
@@ -56,7 +56,6 @@ const amountDbValuePlaceholders = SUPPORTED_CURRENCIES.map(c => `$amount_${c.toL
 const SettingsSchema = z.object({
   defaultCurrency: z.enum(SUPPORTED_CURRENCIES),
   apiKey: z.string().optional(),
-  apiKeyStatus: z.enum(['valid', 'invalid', 'unchecked', 'missing']).optional(),
 });
 
 const CategoryBaseSchema = z.object({
@@ -104,11 +103,16 @@ const UpdateSubscriptionInputSchema = SubscriptionBaseSchema.extend({
 // --- Settings Actions ---
 
 /**
- * Retrieves application settings from settings.json.
+ * Retrieves application settings from settings.json and dynamically adds the last rates sync time.
  * @returns A promise that resolves to the AppSettings object.
  */
 export async function getSettingsAction(): Promise<AppSettings> {
-  return readData<AppSettings>(DATA_FILE_PATHS.settings, DEFAULT_SETTINGS);
+  const settings = await readData<Omit<AppSettings, 'lastRatesSync'>>(DATA_FILE_PATHS.settings, DEFAULT_SETTINGS);
+  const ratesFile = await getRatesFile();
+  return {
+    ...settings,
+    lastRatesSync: ratesFile.lastFetched,
+  };
 }
 
 /**
@@ -117,9 +121,10 @@ export async function getSettingsAction(): Promise<AppSettings> {
  * @returns A promise that resolves to the saved AppSettings object.
  */
 export async function updateSettingsAction(updatedSettings: AppSettings): Promise<AppSettings> {
-  const parsedSettings = SettingsSchema.parse(updatedSettings);
+  const { lastRatesSync, ...settingsToSave } = updatedSettings;
+  const parsedSettings = SettingsSchema.parse(settingsToSave);
   await writeData(DATA_FILE_PATHS.settings, parsedSettings);
-  return parsedSettings;
+  return { ...parsedSettings, lastRatesSync };
 }
 
 // --- Category Actions ---
@@ -252,8 +257,7 @@ export async function addExpenseAction(
 ): Promise<Expense> {
   const parsedData = AddExpenseInputSchema.parse(expenseData);
   const db = await openDb();
-  const currentSettings = await getSettingsAction();
-  const amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency, currentSettings.apiKey);
+  const amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency);
   const newExpenseId = generateId();
   const dayOfWeek = calculateDayOfWeek(parsedData.date);
   
@@ -285,7 +289,6 @@ export async function addExpenseAction(
 export async function updateExpenseAction(updatedExpenseData: Expense): Promise<Expense> {
   const parsedData = UpdateExpenseInputSchema.parse(updatedExpenseData);
   const db = await openDb();
-  const currentSettings = await getSettingsAction();
   const existingExpenseRow = await db.get('SELECT originalAmount, originalCurrency FROM expenses WHERE id = ?', parsedData.id);
 
   if (!existingExpenseRow) {
@@ -297,7 +300,7 @@ export async function updateExpenseAction(updatedExpenseData: Expense): Promise<
     Number(existingExpenseRow.originalAmount) !== parsedData.originalAmount ||
     existingExpenseRow.originalCurrency !== parsedData.originalCurrency
   ) {
-    amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency, currentSettings.apiKey);
+    amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency);
   }
   
   const dayOfWeek = calculateDayOfWeek(parsedData.date);
@@ -378,8 +381,7 @@ export async function addSubscriptionAction(
     throw new Error('Subscription categoryId is missing or invalid.');
   }
   const db = await openDb();
-  const currentSettings = await getSettingsAction();
-  const amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency, currentSettings.apiKey);
+  const amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency);
   const newSubscriptionId = generateId();
 
   const dbAmountParams = mapAmountsToDbPlaceholders(amounts);
@@ -415,7 +417,6 @@ export async function updateSubscriptionAction(updatedSubscriptionData: Subscrip
     throw new Error('Subscription categoryId is missing or invalid for update.');
   }
   const db = await openDb();
-  const currentSettings = await getSettingsAction();
   const existingSubRow = await db.get('SELECT originalAmount, originalCurrency FROM subscriptions WHERE id = ?', parsedData.id);
   
   if (!existingSubRow) {
@@ -427,7 +428,7 @@ export async function updateSubscriptionAction(updatedSubscriptionData: Subscrip
     Number(existingSubRow.originalAmount) !== parsedData.originalAmount ||
     existingSubRow.originalCurrency !== parsedData.originalCurrency
   ) {
-    amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency, currentSettings.apiKey);
+    amounts = await convertAmountToAllCurrencies(parsedData.originalAmount, parsedData.originalCurrency);
   }
   
   const dbAmountParams = mapAmountsToDbPlaceholders(amounts);
@@ -470,4 +471,15 @@ export async function deleteAllSubscriptionsAction(): Promise<{ success: boolean
   const db = await openDb();
   await db.run('DELETE FROM subscriptions');
   return { success: true };
+}
+
+// --- Exchange Rate Actions ---
+export async function forceUpdateRatesAction(): Promise<{ success: boolean; message?: string }> {
+    const settings = await readData<Omit<AppSettings, 'lastRatesSync'>>(DATA_FILE_PATHS.settings, DEFAULT_SETTINGS);
+    const result = await updateAllExchangeRates(settings.apiKey);
+    
+    if (result.success) {
+        return { success: true };
+    }
+    return { success: false, message: result.message };
 }

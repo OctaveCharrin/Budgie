@@ -1,9 +1,9 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Trash2, RotateCcw, Settings2, AlertTriangle, KeyRound, Eye, EyeOff, Dot } from "lucide-react";
+import { PlusCircle, Trash2, RotateCcw, Settings2, AlertTriangle, KeyRound, Eye, EyeOff, Dot, RefreshCw, Loader2 } from "lucide-react";
 import { useData } from "@/contexts/data-context";
 import { CategoryForm } from "@/components/forms/category-form";
 import { CategoryListItem } from "@/components/list-items/category-list-item";
@@ -28,7 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SUPPORTED_CURRENCIES } from "@/lib/constants";
-
+import { formatDistanceToNow } from 'date-fns';
 
 export function SettingsTab() {
   const { 
@@ -38,7 +38,8 @@ export function SettingsTab() {
     deleteAllSubscriptions,
     resetCategories: resetCategoriesContext,
     settings,
-    updateSettings 
+    updateSettings,
+    forceUpdateRates
   } = useData();
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | undefined>(undefined);
@@ -55,6 +56,7 @@ export function SettingsTab() {
   const [apiKeyInput, setApiKeyInput] = useState(""); 
   const [showApiKey, setShowApiKey] = useState(false);
   const [isRemoveApiKeyAlertOpen, setIsRemoveApiKeyAlertOpen] = useState(false);
+  const [isFetchingRates, setIsFetchingRates] = useState(false);
   
   const { toast } = useToast();
 
@@ -122,9 +124,8 @@ export function SettingsTab() {
 
   const handleApiKeySave = async () => {
     try {
-      const newStatus = apiKeyInput.trim() === '' ? 'missing' : 'unchecked';
-      await updateSettings({ ...settings, apiKey: apiKeyInput.trim(), apiKeyStatus: newStatus });
-      toast({ title: "API Key Saved", description: "ExchangeRate-API key has been updated. Status will be validated on next use." });
+      await updateSettings({ ...settings, apiKey: apiKeyInput.trim() });
+      toast({ title: "API Key Saved", description: "ExchangeRate-API key has been updated." });
       setApiKeyInput(""); 
       setShowApiKey(false); 
     } catch (error) {
@@ -134,7 +135,7 @@ export function SettingsTab() {
   
   const handleApiKeyRemove = async () => {
     try {
-      await updateSettings({ ...settings, apiKey: '', apiKeyStatus: 'missing' });
+      await updateSettings({ ...settings, apiKey: '' });
       toast({ title: "API Key Removed", description: "ExchangeRate-API key has been removed." });
       setApiKeyInput(""); 
       setShowApiKey(false);
@@ -153,47 +154,14 @@ export function SettingsTab() {
     }
     return `••••••••${settings.apiKey.slice(-4)}`;
   };
-
-  const renderApiKeyStatusMessage = () => {
-    if (isDataLoading || !settings) return null;
-
-    switch (settings.apiKeyStatus) {
-      case 'invalid':
-        return (
-          <p className="text-sm text-destructive mt-2 flex items-center">
-            <AlertTriangle className="h-4 w-4 mr-1" />
-            The saved API key appears to be invalid or inactive. Conversions may fail or use fallback rates. Please update or remove it.
-          </p>
-        );
-      case 'missing':
-        return (
-          <p className="text-sm text-muted-foreground mt-2">
-            API Key not set. Live currency conversions are disabled. Fallback rates will be used.
-          </p>
-        );
-      case 'unchecked':
-        if (settings.apiKey && settings.apiKey.length > 0) {
-          return (
-            <p className="text-sm text-muted-foreground mt-2">
-              API Key status is unknown. It will be validated on the next currency conversion.
-            </p>
-          );
-        }
-        return ( 
-          <p className="text-sm text-muted-foreground mt-2">
-            API Key not set. Live currency conversions are disabled. Fallback rates will be used.
-          </p>
-        );
-      case 'valid':
-        return (
-          <p className="text-sm text-green-600 dark:text-green-500 mt-2">
-            API Key is valid and active.
-          </p>
-        );
-      default:
-        return null;
-    }
+  
+  const handleForceUpdateRates = async () => {
+    setIsFetchingRates(true);
+    await forceUpdateRates();
+    setIsFetchingRates(false);
   };
+  
+  const lastSyncTime = settings.lastRatesSync ? new Date(settings.lastRatesSync) : null;
   
   if (isDataLoading) {
     return (
@@ -345,7 +313,6 @@ export function SettingsTab() {
       <section>
         <h2 className="text-2xl font-semibold font-headline mb-4 flex items-center">
             <KeyRound className="mr-3 h-7 w-7 text-primary" /> Exchange Rate API Key
-            {settings.apiKeyStatus === 'invalid' && <Dot className="h-8 w-8 text-destructive animate-ping" />}
         </h2>
         <Card className="shadow-md">
             <CardHeader>
@@ -353,7 +320,7 @@ export function SettingsTab() {
                 <CardDescription>
                     Provide your API key from <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer" className="underline text-primary hover:text-primary/80">ExchangeRate-API.com</a> for live currency conversions.
                     The key is stored securely on the server.
-                    If no key is provided, placeholder rates will be used.
+                    If no key is provided, placeholder rates will be used and updates will fail.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -375,14 +342,13 @@ export function SettingsTab() {
                      <p className="text-sm text-muted-foreground mt-2">
                         Current Saved Key: {getMaskedApiKeyDisplay()}
                     </p>
-                    {renderApiKeyStatusMessage()}
                 </div>
             </CardContent>
             <CardFooter className="gap-2">
                  <Button onClick={handleApiKeySave} className="bg-accent hover:bg-accent/90 text-accent-foreground">Save API Key</Button>
                  <AlertDialog open={isRemoveApiKeyAlertOpen} onOpenChange={setIsRemoveApiKeyAlertOpen}>
                     <AlertDialogTrigger asChild>
-                        <Button variant="destructive">
+                        <Button variant="destructive" disabled={!settings.apiKey}>
                             <Trash2 className="mr-2 h-4 w-4" /> Remove Key
                         </Button>
                     </AlertDialogTrigger>
@@ -406,6 +372,42 @@ export function SettingsTab() {
                 </AlertDialog>
             </CardFooter>
         </Card>
+      </section>
+
+      <Separator />
+
+      <section>
+          <h2 className="text-2xl font-semibold font-headline mb-4 flex items-center">
+              <RefreshCw className="mr-3 h-7 w-7 text-primary" /> Exchange Rate Sync
+          </h2>
+          <Card className="shadow-md">
+              <CardHeader>
+                  <CardTitle>Sync Exchange Rates</CardTitle>
+                  <CardDescription>
+                      Exchange rates are fetched on app startup and once daily. You can also manually trigger an update here. A valid API key is required to perform an update.
+                  </CardDescription>
+              </CardHeader>
+              <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                      Last updated: {lastSyncTime ? `${formatDistanceToNow(lastSyncTime)} ago` : 'Never'}
+                  </p>
+              </CardContent>
+              <CardFooter className="items-center">
+                  <Button onClick={handleForceUpdateRates} disabled={isFetchingRates || !settings.apiKey}>
+                      {isFetchingRates ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                      )}
+                      {isFetchingRates ? "Updating..." : "Update Now"}
+                  </Button>
+                  {!settings.apiKey && (
+                      <p className="text-sm text-muted-foreground ml-4">
+                          An API key is required to fetch rates.
+                      </p>
+                  )}
+              </CardFooter>
+          </Card>
       </section>
 
       <Separator />
@@ -612,4 +614,3 @@ export function SettingsTab() {
     </div>
   );
 }
-    
