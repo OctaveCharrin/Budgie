@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { PlusCircle, TrendingUp, Wallet } from "lucide-react";
@@ -19,6 +20,7 @@ export function DashboardTab() {
   const { expenses, subscriptions, isLoading, settings, getAmountInDefaultCurrency } = useData();
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | undefined>(undefined);
+  const router = useRouter();
 
   const [currentMonthTotalExpenses, setCurrentMonthTotalExpenses] = useState(0);
   const [lastMonthTotalExpenses, setLastMonthTotalExpenses] = useState(0);
@@ -95,6 +97,10 @@ export function DashboardTab() {
   };
   
   const totalSpentThisMonth = currentMonthTotalExpenses + totalMonthlySubscriptionsCost;
+
+  const handleNavigate = (tab: string) => {
+    router.push(`/?tab=${tab}`, { scroll: false });
+  };
 
 
   if (isLoading) {
@@ -173,7 +179,13 @@ export function DashboardTab() {
   return (
     <div className="space-y-6 p-1">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
+        <Card 
+          onClick={() => handleNavigate('reports')} 
+          className="cursor-pointer transition-colors hover:border-primary/50"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if(e.key === 'Enter' || e.key === ' ') handleNavigate('reports')}}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Spent (This Month)</CardTitle>
             <Wallet className="h-4 w-4 text-muted-foreground" />
@@ -194,7 +206,13 @@ export function DashboardTab() {
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card 
+          onClick={() => handleNavigate('subscriptions')} 
+          className="cursor-pointer transition-colors hover:border-primary/50"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if(e.key === 'Enter' || e.key === ' ') handleNavigate('subscriptions')}}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Monthly Subscriptions Cost</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
