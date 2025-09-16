@@ -21,6 +21,10 @@ export function cn(...inputs: ClassValue[]) {
  * @returns A formatted currency string.
  */
 export function formatCurrency(amount: number, currencyCode: CurrencyCode, locale: string = 'en-US'): string {
+  // Check for NaN or other invalid number types to prevent errors
+  if (typeof amount !== 'number' || isNaN(amount)) {
+    amount = 0;
+  }
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: currencyCode,
@@ -28,3 +32,5 @@ export function formatCurrency(amount: number, currencyCode: CurrencyCode, local
     maximumFractionDigits: 2,
   }).format(amount);
 }
+
+    

@@ -14,7 +14,7 @@ import { ExpenseListItem } from "@/components/list-items/expense-list-item";
 import type { Expense } from "@/lib/types";
 import { startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO, isAfter, isEqual } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 
 export function DashboardTab() {
@@ -104,6 +104,7 @@ export function DashboardTab() {
   const budget = settings.monthlyBudget || 0;
   const remainingBudget = budget - totalSpentThisMonth;
   const budgetProgress = budget > 0 ? (totalSpentThisMonth / budget) * 100 : 0;
+  const budgetExceeded = remainingBudget < 0;
 
   const handleNavigate = (tab: string) => {
     router.push(`/?tab=${tab}`, { scroll: false });
@@ -237,13 +238,13 @@ export function DashboardTab() {
           <CardContent>
               {budget > 0 ? (
                 <>
-                  <div className="text-2xl font-bold">
+                  <div className={cn("text-2xl font-bold", budgetExceeded && "text-destructive")}>
                       {formatCurrency(remainingBudget, settings.defaultCurrency)}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                      Remaining of {formatCurrency(budget, settings.defaultCurrency)}
+                      {budgetExceeded ? "Over budget by" : "Remaining of"} {budgetExceeded ? formatCurrency(Math.abs(remainingBudget), settings.defaultCurrency) : formatCurrency(budget, settings.defaultCurrency)}
                   </p>
-                  <Progress value={budgetProgress} className="mt-2 h-2" />
+                  <Progress value={budgetExceeded ? 100 : budgetProgress} className={cn("mt-2 h-2", budgetExceeded && "[&>div]:bg-destructive")} />
                 </>
               ) : (
                 <div className="text-sm text-muted-foreground">
@@ -308,3 +309,5 @@ export function DashboardTab() {
     </div>
   );
 }
+
+    

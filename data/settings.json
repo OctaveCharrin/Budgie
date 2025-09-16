@@ -1,4 +1,5 @@
 {
   "defaultCurrency": "EUR",
-  "apiKey": ""
+  "apiKey": "",
+  "monthlyBudget": 10
 }
