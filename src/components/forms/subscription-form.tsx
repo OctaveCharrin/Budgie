@@ -63,6 +63,10 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
   const [isStartDatePickerOpen, setIsStartDatePickerOpen] = useState(false);
   const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
 
+  const subscriptionsCategory = categories.find(
+    (cat) => cat.id === 'subscriptions' || cat.name.toLowerCase() === 'subscriptions'
+  );
+
   const form = useForm<SubscriptionFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: subscription
@@ -99,15 +103,11 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
 
 
   async function onSubmit(values: SubscriptionFormValues) {
-    const subscriptionsCategory = categories.find(
-      (cat) => cat.id === 'subscriptions' || cat.name.toLowerCase() === 'subscriptions'
-    );
-
     if (!subscriptionsCategory) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "The 'Subscriptions' category is missing. Please ensure it exists in Settings.",
+        description: "The 'Subscriptions' category is missing. Please ensure it exists in Settings before adding a subscription.",
       });
       return;
     }
