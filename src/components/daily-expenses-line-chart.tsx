@@ -14,30 +14,41 @@ interface DailyExpensesLineChartProps {
   dailyTotals: DailyTotalDataPoint[];
   accumulate: boolean;
   isLoading: boolean;
-  period: ReportPeriod; // Added period prop
+  period: ReportPeriod; 
 }
 
 interface ChartData {
   date: string; // Formatted display date
   amount: number;
+  budget?: number;
 }
 
 
 export function DailyExpensesLineChart({ dailyTotals, accumulate, isLoading, period }: DailyExpensesLineChartProps) {
-  const { settings } = useData(); // Only need settings for defaultCurrency
+  const { settings } = useData(); 
   const defaultCurrency = settings.defaultCurrency;
+  const monthlyBudget = settings.monthlyBudget || 0;
 
   const { chartData, totalAverageForPeriod } = useMemo(() => {
     if (isLoading || !defaultCurrency || !dailyTotals) return { chartData: [], totalAverageForPeriod: 0 };
 
-    const processedTotals = dailyTotals.map(item => ({
-        date: item.displayDate, // Use the pre-formatted displayDate
-        amount: item.amount
-    }));
+    const numberOfDaysInPeriod = dailyTotals.length;
+    const dailyBudget = numberOfDaysInPeriod > 0 ? monthlyBudget / numberOfDaysInPeriod : 0;
+
+    const processedTotals = dailyTotals.map((item, index) => {
+        let budgetValue: number | undefined = undefined;
+        if (monthlyBudget > 0 && dailyBudget > 0) {
+            budgetValue = accumulate ? dailyBudget * (index + 1) : dailyBudget;
+        }
+        return {
+            date: item.displayDate,
+            amount: item.amount,
+            budget: budgetValue,
+        };
+    });
 
     let finalChartData: ChartData[] = [...processedTotals];
     let rawDailyAmounts: number[] = processedTotals.map(item => item.amount);
-
 
     if (accumulate) {
       let runningTotal = 0;
@@ -52,7 +63,7 @@ export function DailyExpensesLineChart({ dailyTotals, accumulate, isLoading, per
     
     return { chartData: finalChartData, totalAverageForPeriod: avgForPeriod };
 
-  }, [dailyTotals, defaultCurrency, accumulate, isLoading]);
+  }, [dailyTotals, defaultCurrency, accumulate, isLoading, monthlyBudget]);
 
   if (isLoading || !defaultCurrency) {
     return <Skeleton className="h-[300px] w-full" />;
@@ -69,11 +80,13 @@ export function DailyExpensesLineChart({ dailyTotals, accumulate, isLoading, per
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const mainPayload = payload.find(p => p.dataKey === 'amount');
+      const budgetPayload = payload.find(p => p.dataKey === 'budget');
 
       return (
         <div className="p-2 bg-background border border-border rounded-md shadow-lg">
           <p className="font-semibold">{`Date: ${label}`}</p>
           {mainPayload && <p className="text-sm" style={{ color: mainPayload.stroke }}>{`${mainPayload.name}: ${formatCurrency(mainPayload.value, defaultCurrency)}`}</p>}
+          {budgetPayload && <p className="text-sm" style={{ color: budgetPayload.stroke }}>{`${budgetPayload.name}: ${formatCurrency(budgetPayload.value, defaultCurrency)}`}</p>}
         </div>
       );
     }
@@ -96,7 +109,7 @@ export function DailyExpensesLineChart({ dailyTotals, accumulate, isLoading, per
         <LineChart data={chartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis
-            dataKey="date" // This is now displayDate from dailyTotals
+            dataKey="date" 
             stroke="hsl(var(--muted-foreground))"
             fontSize={12}
             tickLine={false}
@@ -123,6 +136,18 @@ export function DailyExpensesLineChart({ dailyTotals, accumulate, isLoading, per
             name={accumulate ? "Accumulated Spending" : "Daily Spending"}
             animationDuration={500}
           />
+           {monthlyBudget > 0 && (
+             <Line
+                type="monotone"
+                dataKey="budget"
+                stroke="#22c55e" // green-500
+                strokeWidth={2}
+                strokeDasharray="5 5"
+                dot={false}
+                name={accumulate ? "Accumulated Budget" : "Daily Budget Target"}
+                animationDuration={500}
+              />
+           )}
           {!accumulate && totalAverageForPeriod > 0 && (
              <ReferenceLine
                 y={totalAverageForPeriod}
