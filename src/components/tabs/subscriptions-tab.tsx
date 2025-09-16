@@ -13,7 +13,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card"; // Added for Skeleton
+import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { parseISO, isBefore } from "date-fns";
 
 
 const SELECT_ALL_CATEGORIES_VALUE = "__ALL_CATEGORIES__";
@@ -36,27 +38,38 @@ export function SubscriptionsTab() {
     setEditingSubscription(undefined);
   };
 
-  const filteredAndSortedSubscriptions = subscriptions
-    .filter(sub => {
-      const category = getCategoryById(sub.categoryId);
-      const nameMatch = sub.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const categoryNameMatch = category?.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const searchMatch = searchTerm === "" || nameMatch || categoryNameMatch;
-      const categoryFilterMatch = filterCategory === SELECT_ALL_CATEGORIES_VALUE || sub.categoryId === filterCategory;
-      return searchMatch && categoryFilterMatch;
-    })
-    .sort((a, b) => {
-      const amountA = getAmountInDefaultCurrency(a);
-      const amountB = getAmountInDefaultCurrency(b);
-      switch (sortOrder) {
-        case "name-desc": return b.name.localeCompare(a.name);
-        case "amount-desc": return amountB - amountA;
-        case "amount-asc": return amountA - amountB;
-        case "name-asc":
-        default:
-          return a.name.localeCompare(b.name);
-      }
-    });
+  const now = new Date();
+  
+  const baseOngoingSubscriptions = subscriptions.filter(sub => !sub.endDate || !isBefore(parseISO(sub.endDate), now));
+  const baseEndedSubscriptions = subscriptions.filter(sub => sub.endDate && isBefore(parseISO(sub.endDate), now));
+
+  const filterAndSort = (subs: Subscription[]) => {
+    return subs
+      .filter(sub => {
+        const category = getCategoryById(sub.categoryId);
+        const nameMatch = sub.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const categoryNameMatch = category?.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const searchMatch = searchTerm === "" || nameMatch || categoryNameMatch;
+        const categoryFilterMatch = filterCategory === SELECT_ALL_CATEGORIES_VALUE || sub.categoryId === filterCategory;
+        return searchMatch && categoryFilterMatch;
+      })
+      .sort((a, b) => {
+        const amountA = getAmountInDefaultCurrency(a);
+        const amountB = getAmountInDefaultCurrency(b);
+        switch (sortOrder) {
+          case "name-desc": return b.name.localeCompare(a.name);
+          case "amount-desc": return amountB - amountA;
+          case "amount-asc": return amountA - amountB;
+          case "name-asc":
+          default:
+            return a.name.localeCompare(b.name);
+        }
+      });
+  };
+
+  const ongoingSubscriptions = filterAndSort(baseOngoingSubscriptions);
+  const endedSubscriptions = filterAndSort(baseEndedSubscriptions);
+
 
   if (isLoading) {
      return (
@@ -148,22 +161,48 @@ export function SubscriptionsTab() {
           </SelectContent>
         </Select>
       </div>
+      
+      <Accordion type="multiple" defaultValue={['ongoing-subscriptions']} className="w-full">
+        <AccordionItem value="ongoing-subscriptions">
+          <AccordionTrigger className="text-xl font-semibold font-headline">Ongoing Subscriptions ({ongoingSubscriptions.length})</AccordionTrigger>
+          <AccordionContent>
+            {ongoingSubscriptions.length > 0 ? (
+              <ScrollArea className="h-[calc(50vh_-_10rem)]"> 
+                <div className="space-y-4 pr-3 py-2">
+                  {ongoingSubscriptions.map(subscription => (
+                    <SubscriptionListItem key={subscription.id} subscription={subscription} onEdit={handleEdit} />
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="text-center py-10">
+                  <p className="text-muted-foreground">No ongoing subscriptions found.</p>
+                  {subscriptions.length > 0 && <p className="text-sm text-muted-foreground">Try adjusting your search or filters.</p>}
+              </div>
+            )}
+          </AccordionContent>
+        </AccordionItem>
+        
+        <AccordionItem value="ended-subscriptions">
+          <AccordionTrigger className="text-xl font-semibold font-headline">Ended Subscriptions ({endedSubscriptions.length})</AccordionTrigger>
+          <AccordionContent>
+            {endedSubscriptions.length > 0 ? (
+              <ScrollArea className="h-[calc(50vh_-_10rem)]">
+                <div className="space-y-4 pr-3 py-2">
+                  {endedSubscriptions.map(subscription => (
+                    <SubscriptionListItem key={subscription.id} subscription={subscription} onEdit={handleEdit} />
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="text-center py-10">
+                <p className="text-muted-foreground">No ended subscriptions found.</p>
+              </div>
+            )}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
-
-      {filteredAndSortedSubscriptions.length > 0 ? (
-         <ScrollArea className="h-[calc(100vh_-_20rem)]"> 
-          <div className="space-y-4 pr-3">
-            {filteredAndSortedSubscriptions.map(subscription => (
-              <SubscriptionListItem key={subscription.id} subscription={subscription} onEdit={handleEdit} />
-            ))}
-          </div>
-        </ScrollArea>
-      ) : (
-        <div className="text-center py-10">
-            <p className="text-muted-foreground">No subscriptions found.</p>
-            {subscriptions.length > 0 && <p className="text-sm text-muted-foreground">Try adjusting your search or filters.</p>}
-        </div>
-      )}
     </div>
   );
 }
