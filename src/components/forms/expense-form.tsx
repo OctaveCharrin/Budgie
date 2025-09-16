@@ -87,10 +87,13 @@ export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
 
 
   async function onSubmit(values: ExpenseFormValues) {
+    // Format the date to 'yyyy-MM-dd' to avoid timezone issues.
+    const dateString = format(values.date, 'yyyy-MM-dd');
+
     if (expense) { // Editing existing expense
       const updatedExpenseData: Expense = {
         ...expense, // Retain ID and potentially unchanged amounts
-        date: values.date.toISOString(),
+        date: dateString,
         categoryId: values.categoryId,
         originalAmount: values.originalAmount,
         originalCurrency: values.originalCurrency,
@@ -101,13 +104,13 @@ export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
       toast({ title: "Expense Updated", description: "Your expense has been successfully updated." });
     } else { // Adding new expense
       const newExpenseData = {
-        date: values.date.toISOString(),
+        date: dateString,
         categoryId: values.categoryId,
         originalAmount: values.originalAmount,
         originalCurrency: values.originalCurrency,
         description: values.description,
       };
-      await addExpense(newExpenseData);
+      await addExpense(newExpenseData as any);
       toast({ title: "Expense Added", description: "New expense has been successfully added." });
     }
     onSave();
@@ -153,7 +156,7 @@ export function ExpenseForm({ expense, onSave }: ExpenseFormProps) {
                     mode="single"
                     selected={field.value}
                     onSelect={(date) => {
-                      field.onChange(date);
+                      if (date) field.onChange(date);
                       setIsCalendarOpen(false);
                     }}
                     initialFocus

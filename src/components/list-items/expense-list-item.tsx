@@ -1,7 +1,7 @@
 
 "use client";
 
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { Pencil, Trash2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,6 +50,9 @@ export function ExpenseListItem({ expense, onEdit }: ExpenseListItemProps) {
   
   const formattedOriginalAmount = formatCurrency(expense.originalAmount, expense.originalCurrency);
 
+  // Parse the 'YYYY-MM-DD' string as a Date object for formatting
+  const expenseDate = parseISO(expense.date);
+
   return (
     <Card className="w-full shadow-md hover:shadow-lg transition-shadow duration-200">
       <CardHeader className="pb-2">
@@ -59,7 +62,7 @@ export function ExpenseListItem({ expense, onEdit }: ExpenseListItemProps) {
               <IconDisplay name={categoryIcon} className="mr-2 h-5 w-5 text-primary" />
               {categoryName}
             </CardTitle>
-            <p className="text-xs text-muted-foreground">{format(new Date(expense.date), "PPP")}</p>
+            <p className="text-xs text-muted-foreground">{format(expenseDate, "PPP")}</p>
           </div>
           <div className="text-right">
             <p className="text-xl font-semibold text-primary">

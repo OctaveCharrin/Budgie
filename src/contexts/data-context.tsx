@@ -12,18 +12,19 @@ import {
   getSettingsAction, updateSettingsAction, forceUpdateRatesAction
 } from '@/actions/data-actions';
 import { useToast } from "@/hooks/use-toast";
+import { parseISO } from 'date-fns';
 
 
 interface DataContextProps {
   expenses: Expense[];
   setExpenses: (expenses: Expense[] | ((val: Expense[]) => Expense[])) => void;
-  addExpense: (expenseData: Omit<Expense, 'id' | 'amounts' | 'dayOfWeek'> & { originalAmount: number; originalCurrency: CurrencyCode }) => Promise<void>;
+  addExpense: (expenseData: Omit<Expense, 'id' | 'amounts' | 'dayOfWeek'>) => Promise<void>;
   updateExpense: (expense: Expense) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
   deleteAllExpenses: () => Promise<void>;
   subscriptions: Subscription[];
   setSubscriptions: (subscriptions: Subscription[] | ((val: Subscription[]) => Subscription[])) => void;
-  addSubscription: (subscriptionData: Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode; name: string; categoryId: string; startDate: string; endDate?:string; description?: string; }) => Promise<void>;
+  addSubscription: (subscriptionData: Omit<Subscription, 'id' | 'amounts'>) => Promise<void>;
   updateSubscription: (subscription: Subscription) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
   deleteAllSubscriptions: () => Promise<void>;
@@ -147,10 +148,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
    * Adds a new expense, handling currency conversion and updating state.
    * @param expenseData - The new expense data.
    */
-  const addExpenseContext = async (expenseData: Omit<Expense, 'id' | 'amounts' | 'dayOfWeek'> & { originalAmount: number; originalCurrency: CurrencyCode }) => {
+  const addExpenseContext = async (expenseData: Omit<Expense, 'id' | 'amounts' | 'dayOfWeek'>) => {
     try {
-      const newExpense = await addExpenseAction(expenseData);
-      setExpenses(prev => [newExpense, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      const newExpense = await addExpenseAction(expenseData as any);
+      setExpenses(prev => [newExpense, ...prev].sort((a,b) => parseISO(b.date).getTime() - parseISO(a.date).getTime()));
     } catch (error: any) {
       console.error("Failed to add expense:", error);
       toast({ variant: "destructive", title: "Error", description: `Could not add expense: ${error.message || "Please check API key or network."}` });
@@ -164,7 +165,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const updateExpenseContext = async (updatedExpenseData: Expense) => {
     try {
       const updatedExpense = await updateExpenseAction(updatedExpenseData);
-      setExpenses(prev => prev.map(exp => exp.id === updatedExpense.id ? updatedExpense : exp).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setExpenses(prev => prev.map(exp => exp.id === updatedExpense.id ? updatedExpense : exp).sort((a,b) => parseISO(b.date).getTime() - parseISO(a.date).getTime()));
     } catch (error: any) {
       console.error("Failed to update expense:", error);
       toast({ variant: "destructive", title: "Error", description: `Could not update expense: ${error.message || "Please check API key or network."}` });
@@ -203,9 +204,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
    * Adds a new subscription.
    * @param subscriptionData - The new subscription data.
    */
-  const addSubscriptionContext = async (subscriptionData: Omit<Subscription, 'id' | 'amounts'> & { originalAmount: number; originalCurrency: CurrencyCode; name: string; categoryId: string; startDate: string; endDate?: string; description?: string; }) => {
+  const addSubscriptionContext = async (subscriptionData: Omit<Subscription, 'id' | 'amounts'>) => {
     try {
-      const newSubscription = await addSubscriptionAction(subscriptionData);
+      const newSubscription = await addSubscriptionAction(subscriptionData as any);
       setSubscriptions(prev => [newSubscription, ...prev].sort((a,b) => a.name.localeCompare(b.name)));
     } catch (error: any) {
       console.error("Failed to add subscription:", error);

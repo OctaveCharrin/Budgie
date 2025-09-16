@@ -39,6 +39,8 @@ export function DashboardTab() {
 
     const calculateTotalExpensesForPeriod = (start: Date, end: Date): number => {
       return expenses.reduce((total, exp) => {
+        // Since exp.date is 'YYYY-MM-DD', parseISO treats it as UTC midnight.
+        // isWithinInterval correctly handles this comparison.
         if (isWithinInterval(parseISO(exp.date), { start, end })) {
           return total + getAmountInDefaultCurrency(exp);
         }
@@ -68,8 +70,8 @@ export function DashboardTab() {
 
       // Check if the subscription is active in the current month
       const isActiveInCurrentMonth = 
-        (isEqual(subStartDate, currentMonthEnd) || isAfter(currentMonthEnd, subStartDate)) && // Starts before or on month end
-        (!subEndDate || isEqual(subEndDate, currentMonthStart) || isAfter(subEndDate, currentMonthStart)); // No end date OR ends after or on month start
+        (isAfter(currentMonthEnd, subStartDate) || isEqual(currentMonthEnd, subStartDate)) && // Starts before or on month end
+        (!subEndDate || isAfter(subEndDate, currentMonthStart) || isEqual(subEndDate, currentMonthStart)); // No end date OR ends after or on month start
       
       if (isActiveInCurrentMonth) {
         activeSubsTotalCost += getAmountInDefaultCurrency(sub);

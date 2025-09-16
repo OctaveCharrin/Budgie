@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
 import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card"; // Added for Skeleton
+import { parseISO } from "date-fns";
 
 const SELECT_ALL_CATEGORIES_VALUE = "__ALL_CATEGORIES__";
 
@@ -53,12 +54,12 @@ export function ExpensesTab() {
       const amountA = getAmountInDefaultCurrency(a);
       const amountB = getAmountInDefaultCurrency(b);
       switch (sortOrder) {
-        case "date-asc": return new Date(a.date).getTime() - new Date(b.date).getTime();
+        case "date-asc": return parseISO(a.date).getTime() - parseISO(b.date).getTime();
         case "amount-desc": return amountB - amountA;
         case "amount-asc": return amountA - amountB;
         case "date-desc":
         default:
-          return new Date(b.date).getTime() - new Date(a.date).getTime();
+          return parseISO(b.date).getTime() - parseISO(a.date).getTime();
       }
     });
 

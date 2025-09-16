@@ -115,8 +115,8 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
 
     const dataToSave = {
       name: values.name,
-      startDate: values.startDate.toISOString(),
-      endDate: values.endDate ? values.endDate.toISOString() : undefined,
+      startDate: format(values.startDate, 'yyyy-MM-dd'),
+      endDate: values.endDate ? format(values.endDate, 'yyyy-MM-dd') : undefined,
       categoryId: subscriptionsCategoryId, 
       originalAmount: values.originalAmount,
       originalCurrency: values.originalCurrency,
@@ -193,7 +193,7 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
                       mode="single"
                       selected={field.value}
                       onSelect={(date) => {
-                        field.onChange(date);
+                        if(date) field.onChange(date);
                         setIsStartDatePickerOpen(false);
                       }}
                       initialFocus

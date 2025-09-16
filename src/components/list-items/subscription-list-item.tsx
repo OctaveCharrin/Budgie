@@ -1,7 +1,7 @@
 
 "use client";
 
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { Pencil, Trash2, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,10 +48,13 @@ export function SubscriptionListItem({ subscription, onEdit }: SubscriptionListI
   const formattedOriginalAmount = subscription.originalCurrency && typeof subscription.originalAmount === 'number'
     ? formatCurrency(subscription.originalAmount, subscription.originalCurrency)
     : "N/A";
+  
+  const startDate = parseISO(subscription.startDate);
+  const endDate = subscription.endDate ? parseISO(subscription.endDate) : null;
 
-  const dateDetails = subscription.endDate 
-    ? `Starts: ${format(new Date(subscription.startDate), "MMM dd, yyyy")} | Ends: ${format(new Date(subscription.endDate), "MMM dd, yyyy")}`
-    : `Starts: ${format(new Date(subscription.startDate), "MMM dd, yyyy")} (Ongoing)`;
+  const dateDetails = endDate
+    ? `Starts: ${format(startDate, "MMM dd, yyyy")} | Ends: ${format(endDate, "MMM dd, yyyy")}`
+    : `Starts: ${format(startDate, "MMM dd, yyyy")} (Ongoing)`;
 
 
   return (

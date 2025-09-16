@@ -6,18 +6,18 @@ import { DATA_FILE_PATHS, DEFAULT_CATEGORIES, DEFAULT_SETTINGS, SUPPORTED_CURREN
 import type { Expense, Subscription, Category, AppSettings, CurrencyCode } from '@/lib/types';
 import { convertAmountToAllCurrencies, getRatesFile, updateAllExchangeRates } from '@/services/exchange-rate-service';
 import { openDb } from '@/lib/db';
-import { getDay as getDayFns } from 'date-fns';
+import { getDay as getDayFns, parseISO } from 'date-fns';
 import { z } from 'zod';
 
 const generateId = () => crypto.randomUUID();
 
 /**
  * Calculates the day of the week for a given date string.
- * @param dateString - The date string (e.g., in ISO format).
+ * @param dateString - The date string (e.g., 'YYYY-MM-DD').
  * @returns A number representing the day of the week (0 for Monday, 6 for Sunday).
  */
 function calculateDayOfWeek(dateString: string): number {
-  const date = new Date(dateString);
+  const date = parseISO(dateString); // Use parseISO as date is 'YYYY-MM-DD'
   const dayFns = getDayFns(date); // date-fns: 0 for Sunday, 1 for Monday, ..., 6 for Saturday
   return dayFns === 0 ? 6 : dayFns - 1; // App convention: 0 for Monday, ..., 6 for Sunday
 }
@@ -70,7 +70,7 @@ const UpdateCategoryInputSchema = CategoryBaseSchema.extend({
 });
 
 const ExpenseBaseSchema = z.object({
-  date: z.string().refine((date) => !isNaN(Date.parse(date)), { message: "Invalid date format." }),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format. Expected YYYY-MM-DD."),
   categoryId: z.string().min(1, "Category ID is required."),
   originalAmount: z.number().positive("Amount must be positive."),
   originalCurrency: z.enum(SUPPORTED_CURRENCIES),
@@ -89,8 +89,8 @@ const SubscriptionBaseSchema = z.object({
   categoryId: z.string().min(1, "Category ID is required."),
   originalAmount: z.number().positive("Amount must be positive."),
   originalCurrency: z.enum(SUPPORTED_CURRENCIES),
-  startDate: z.string().refine((date) => !isNaN(Date.parse(date)), { message: "Invalid start date format." }),
-  endDate: z.string().refine((date) => !isNaN(Date.parse(date)), { message: "Invalid end date format." }).optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid start date format. Expected YYYY-MM-DD."),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid end date format. Expected YYYY-MM-DD.").optional(),
   description: z.string().optional(),
 });
 
