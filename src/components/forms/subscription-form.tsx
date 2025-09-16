@@ -242,6 +242,19 @@ export function SubscriptionForm({ subscription, onSave }: SubscriptionFormProps
                         form.getValues("startDate") && date < form.getValues("startDate")
                       }
                     />
+                    <div className="p-2 border-t border-border">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => {
+                                field.onChange(undefined);
+                                setIsEndDatePickerOpen(false);
+                            }}
+                        >
+                            Clear
+                        </Button>
+                    </div>
                   </PopoverContent>
                 </Popover>
                 <FormMessage />
