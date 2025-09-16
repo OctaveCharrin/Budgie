@@ -54,12 +54,6 @@
     "isDefault": true
   },
   {
-    "id": "dd5b0112-3aea-45b6-8b20-02fb3a62b6ea",
-    "name": "test",
-    "icon": "DollarSign",
-    "isDefault": false
-  },
-  {
     "id": "transportation",
     "name": "Transportation",
     "icon": "Bus",

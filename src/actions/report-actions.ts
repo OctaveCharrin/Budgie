@@ -88,8 +88,9 @@ export async function getOverallPeriodMetrics(
   const reportPeriodEndIso = reportPeriodEnd.toISOString();
 
   // --- Fetch pre-aggregated expense data using SQL ---
+  // Using date(date, 'utc') ensures that the date extraction is not affected by server timezone.
   const dailyExpenseTotalsFromDb: { expense_day: string; daily_total: number }[] = await db.all(
-    `SELECT date(date) AS expense_day, SUM(${amountColumnName}) as daily_total
+    `SELECT date(date, 'utc') AS expense_day, SUM(${amountColumnName}) as daily_total
      FROM expenses
      WHERE date >= ? AND date <= ?
      GROUP BY expense_day`,
