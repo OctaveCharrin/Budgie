@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { PlusCircle, TrendingUp, Wallet } from "lucide-react";
+import { PlusCircle, TrendingUp, Wallet, Target } from "lucide-react";
 import { useData } from "@/contexts/data-context";
 import { ExpenseForm } from "@/components/forms/expense-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -15,6 +15,7 @@ import type { Expense } from "@/lib/types";
 import { startOfMonth, endOfMonth, subMonths, isWithinInterval, parseISO, isAfter, isEqual } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
+import { Progress } from "@/components/ui/progress";
 
 export function DashboardTab() {
   const { expenses, subscriptions, isLoading, settings, getAmountInDefaultCurrency } = useData();
@@ -99,6 +100,10 @@ export function DashboardTab() {
   };
   
   const totalSpentThisMonth = currentMonthTotalExpenses + totalMonthlySubscriptionsCost;
+  
+  const budget = settings.monthlyBudget || 0;
+  const remainingBudget = budget - totalSpentThisMonth;
+  const budgetProgress = budget > 0 ? (totalSpentThisMonth / budget) * 100 : 0;
 
   const handleNavigate = (tab: string) => {
     router.push(`/?tab=${tab}`, { scroll: false });
@@ -108,7 +113,7 @@ export function DashboardTab() {
   if (isLoading) {
     return (
       <div className="space-y-6 p-1">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Spent (This Month)</CardTitle>
@@ -121,7 +126,17 @@ export function DashboardTab() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Monthly Subscriptions Cost</CardTitle>
+                <CardTitle className="text-sm font-medium">Monthly Budget</CardTitle>
+                <Target className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <Skeleton className="h-8 w-3/4 mb-1" />
+                <Skeleton className="h-4 w-full mt-2" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Monthly Subscriptions</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -129,7 +144,7 @@ export function DashboardTab() {
               <Skeleton className="h-4 w-1/2" />
             </CardContent>
           </Card>
-           <div className="lg:col-span-1 md:col-span-2 flex items-center justify-center p-2 sm:p-6">
+           <div className="flex items-center justify-center p-2 sm:p-6">
              <Dialog open={isAddExpenseOpen} onOpenChange={(isOpen) => {
                if (!isOpen) closeDialogAndReset(); else setIsAddExpenseOpen(true);
              }}>
@@ -180,7 +195,7 @@ export function DashboardTab() {
 
   return (
     <div className="space-y-6 p-1">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card 
           onClick={() => handleNavigate('reports')} 
           className="cursor-pointer transition-colors hover:border-primary/50"
@@ -209,6 +224,35 @@ export function DashboardTab() {
           </CardContent>
         </Card>
         <Card 
+          onClick={() => handleNavigate('settings')} 
+          className="cursor-pointer transition-colors hover:border-primary/50"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if(e.key === 'Enter' || e.key === ' ') handleNavigate('settings')}}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Monthly Budget</CardTitle>
+              <Target className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+              {budget > 0 ? (
+                <>
+                  <div className="text-2xl font-bold">
+                      {formatCurrency(remainingBudget, settings.defaultCurrency)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                      Remaining of {formatCurrency(budget, settings.defaultCurrency)}
+                  </p>
+                  <Progress value={budgetProgress} className="mt-2 h-2" />
+                </>
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                    No budget set. Go to settings to add one.
+                </div>
+              )}
+          </CardContent>
+        </Card>
+        <Card 
           onClick={() => handleNavigate('subscriptions')} 
           className="cursor-pointer transition-colors hover:border-primary/50"
           role="button"
@@ -216,7 +260,7 @@ export function DashboardTab() {
           onKeyDown={(e) => { if(e.key === 'Enter' || e.key === ' ') handleNavigate('subscriptions')}}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Subscriptions Cost</CardTitle>
+            <CardTitle className="text-sm font-medium">Monthly Subscriptions</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -226,13 +270,13 @@ export function DashboardTab() {
             <p className="text-xs text-muted-foreground">{activeSubscriptionsCount} active subscriptions</p>
           </CardContent>
         </Card>
-        <div className="lg:col-span-1 md:col-span-2 flex items-center justify-center p-2 sm:p-6">
+        <div className="flex items-center justify-center p-2 sm:p-6">
            <Dialog open={isAddExpenseOpen} onOpenChange={(isOpen) => {
              if (!isOpen) closeDialogAndReset(); else setIsAddExpenseOpen(true);
            }}>
             <DialogTrigger asChild>
               <Button size="lg" className="w-full text-lg bg-accent hover:bg-accent/90 text-accent-foreground">
-                <PlusCircle className="mr-2 h-6 w-6" /> Add New Expense
+                <PlusCircle className="mr-2 h-6 w-6" /> Add Expense
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">

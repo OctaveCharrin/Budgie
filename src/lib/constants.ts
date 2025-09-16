@@ -25,6 +25,7 @@ export const DATA_FILE_PATHS = {
 export const DEFAULT_SETTINGS: AppSettings = {
   defaultCurrency: 'USD',
   apiKey: '',
+  monthlyBudget: 0,
   lastRatesSync: null,
 };
 

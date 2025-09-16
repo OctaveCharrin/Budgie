@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Trash2, RotateCcw, Settings2, AlertTriangle, KeyRound, Eye, EyeOff, Dot, RefreshCw, Loader2 } from "lucide-react";
+import { PlusCircle, Trash2, RotateCcw, Settings2, AlertTriangle, KeyRound, Eye, EyeOff, Dot, RefreshCw, Loader2, PiggyBank } from "lucide-react";
 import { useData } from "@/contexts/data-context";
 import { CategoryForm } from "@/components/forms/category-form";
 import { CategoryListItem } from "@/components/list-items/category-list-item";
@@ -122,6 +122,16 @@ export function SettingsTab() {
     updateSettings({ ...settings, defaultCurrency: currency });
   };
 
+  const handleBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const numberValue = value === '' ? 0 : parseFloat(value);
+    if (!isNaN(numberValue) && numberValue >= 0) {
+        updateSettings({ ...settings, monthlyBudget: numberValue });
+    } else if (value === '') {
+        updateSettings({ ...settings, monthlyBudget: 0 });
+    }
+  };
+
   const handleApiKeySave = async () => {
     try {
       await updateSettings({ ...settings, apiKey: apiKeyInput.trim() });
@@ -166,22 +176,32 @@ export function SettingsTab() {
   if (isDataLoading) {
     return (
       <div className="space-y-8 p-1">
-        {/* Currency Settings Skeleton */}
+        {/* General Settings Skeleton */}
         <section>
            <div className="flex items-center mb-4">
              <Skeleton className="h-7 w-7 mr-3 rounded-full" />
              <Skeleton className="h-9 w-1/2" />
            </div>
-           <Card className="shadow-md">
-            <CardHeader>
-                <Skeleton className="h-6 w-3/4 mb-2" /> {/* CardTitle */}
-                <Skeleton className="h-4 w-full mb-1" /> {/* CardDescription line 1 */}
-                <Skeleton className="h-4 w-5/6" />      {/* CardDescription line 2 */}
-            </CardHeader>
-            <CardContent>
-                <Skeleton className="h-10 w-48 rounded-md" /> {/* Select dropdown */}
-            </CardContent>
-           </Card>
+           <div className="space-y-4">
+            <Card className="shadow-md">
+                <CardHeader>
+                    <Skeleton className="h-6 w-3/4 mb-2" />
+                    <Skeleton className="h-4 w-full mb-1" />
+                </CardHeader>
+                <CardContent>
+                    <Skeleton className="h-10 w-48 rounded-md" />
+                </CardContent>
+            </Card>
+            <Card className="shadow-md">
+                <CardHeader>
+                    <Skeleton className="h-6 w-3/4 mb-2" />
+                    <Skeleton className="h-4 w-full mb-1" />
+                </CardHeader>
+                <CardContent>
+                    <Skeleton className="h-10 w-48 rounded-md" />
+                </CardContent>
+            </Card>
+           </div>
         </section>
         <Separator/>
         {/* API Key Settings Skeleton */}
@@ -278,34 +298,59 @@ export function SettingsTab() {
         <h2 className="text-2xl font-semibold font-headline mb-4 flex items-center">
             <Settings2 className="mr-3 h-7 w-7 text-primary" /> General Settings
         </h2>
-        <Card className="shadow-md">
+        <div className="space-y-4">
+          <Card className="shadow-md">
+              <CardHeader>
+                  <CardTitle>Default Display Currency</CardTitle>
+                  <CardDescription>
+                      Choose the default currency for displaying totals. Expenses will still be stored with their original currency.
+                  </CardDescription>
+              </CardHeader>
+              <CardContent>
+                  <div className="max-w-xs">
+                      <Label htmlFor="defaultCurrencySelect" className="sr-only">Default Currency</Label>
+                      <Select
+                          value={settings.defaultCurrency}
+                          onValueChange={(value) => handleDefaultCurrencyChange(value as CurrencyCode)}
+                      >
+                          <SelectTrigger id="defaultCurrencySelect">
+                              <SelectValue placeholder="Select default currency" />
+                          </SelectTrigger>
+                          <SelectContent>
+                          {SUPPORTED_CURRENCIES.map((currency) => (
+                              <SelectItem key={currency} value={currency}>
+                              {currency}
+                              </SelectItem>
+                          ))}
+                          </SelectContent>
+                      </Select>
+                  </div>
+              </CardContent>
+          </Card>
+          <Card className="shadow-md">
             <CardHeader>
-                <CardTitle>Default Display Currency</CardTitle>
+                <CardTitle>Monthly Budget</CardTitle>
                 <CardDescription>
-                    Choose the default currency for displaying amounts in dashboards and reports. Expenses will still be stored with their original currency and converted values.
+                    Set a monthly spending budget. This will be shown on your dashboard to help you track your spending.
                 </CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="max-w-xs">
-                    <Label htmlFor="defaultCurrencySelect" className="sr-only">Default Currency</Label>
-                    <Select
-                        value={settings.defaultCurrency}
-                        onValueChange={(value) => handleDefaultCurrencyChange(value as CurrencyCode)}
-                    >
-                        <SelectTrigger id="defaultCurrencySelect">
-                            <SelectValue placeholder="Select default currency" />
-                        </SelectTrigger>
-                        <SelectContent>
-                        {SUPPORTED_CURRENCIES.map((currency) => (
-                            <SelectItem key={currency} value={currency}>
-                            {currency}
-                            </SelectItem>
-                        ))}
-                        </SelectContent>
-                    </Select>
+                    <Label htmlFor="monthlyBudgetInput">Budget Amount ({settings.defaultCurrency})</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                        <Input
+                            id="monthlyBudgetInput"
+                            type="number"
+                            value={settings.monthlyBudget || ''}
+                            onChange={handleBudgetChange}
+                            placeholder="e.g., 1000"
+                            min="0"
+                        />
+                    </div>
                 </div>
             </CardContent>
-        </Card>
+          </Card>
+        </div>
       </section>
 
       <Separator />

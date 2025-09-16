@@ -56,6 +56,7 @@ const amountDbValuePlaceholders = SUPPORTED_CURRENCIES.map(c => `$amount_${c.toL
 const SettingsSchema = z.object({
   defaultCurrency: z.enum(SUPPORTED_CURRENCIES),
   apiKey: z.string().optional(),
+  monthlyBudget: z.number().nonnegative().optional(),
 });
 
 const CategoryBaseSchema = z.object({
@@ -90,7 +91,7 @@ const SubscriptionBaseSchema = z.object({
   originalAmount: z.number().positive("Amount must be positive."),
   originalCurrency: z.enum(SUPPORTED_CURRENCIES),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid start date format. Expected YYYY-MM-DD."),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid end date format. Expected YYYY-MM-DD.").optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid end date format. Expected YYYY-MM-DD.").optional().nullable(),
   description: z.string().optional(),
 });
 
@@ -401,7 +402,7 @@ export async function addSubscriptionAction(
       $description: parsedData.description,
     }
   );
-  return { ...parsedData, startDate: parsedData.startDate, endDate: parsedData.endDate, id: newSubscriptionId, amounts };
+  return { ...parsedData, startDate: parsedData.startDate, endDate: parsedData.endDate || undefined, id: newSubscriptionId, amounts };
 }
 
 /**
@@ -448,7 +449,7 @@ export async function updateSubscriptionAction(updatedSubscriptionData: Subscrip
       $description: parsedData.description,
     }
   );
-  return { ...parsedData, startDate: parsedData.startDate, endDate: parsedData.endDate, amounts };
+  return { ...parsedData, startDate: parsedData.startDate, endDate: parsedData.endDate || undefined, amounts };
 }
 
 /**

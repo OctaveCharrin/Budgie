@@ -35,6 +35,7 @@ export interface Subscription {
 export interface AppSettings {
   defaultCurrency: CurrencyCode;
   apiKey?: string;
+  monthlyBudget?: number;
   lastRatesSync?: string | null; // For display purposes, dynamically populated
 }
 
