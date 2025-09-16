@@ -33,7 +33,10 @@ async function doInitialize() {
         filename: dbFilePath,
         driver: sqlite3.Database,
     });
-    await dbInstance.exec('PRAGMA foreign_keys = ON;');
+    
+    // NOTE: Foreign key constraints are NOT used because categories are stored in a JSON file, not a SQL table.
+    // The application logic is responsible for ensuring categoryId integrity.
+    // await dbInstance.exec('PRAGMA foreign_keys = ON;');
 
     // Create expenses table if it doesn't exist
     await dbInstance.exec(`
